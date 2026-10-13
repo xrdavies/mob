@@ -182,17 +182,24 @@ func (s *Server) handleCreateTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.scheduleLocked()
+	if refreshed, getErr := s.store.Get(t.ID); getErr == nil {
+		t = refreshed
+	}
 	s.mu.Unlock()
 	writeJSON(w, http.StatusCreated, t)
 }
 
 // scheduleLocked starts queued turns in FIFO order while desktop slots are free.
-// A dispatched task has a cancel func even before it reports running. Caller holds mu.
+// Mark running before spawning so queuePosition excludes the slot holder. Caller holds mu.
 func (s *Server) scheduleLocked() {
 	limit := max(s.cfg.MaxRunning, 1)
 	for !s.closing && len(s.cancels) < limit {
 		next := s.store.NextQueued(func(id string) bool { return s.cancels[id] != nil })
 		if next == nil {
+			return
+		}
+		if _, err := s.store.UpdateStatus(next.ID, task.StatusRunning, ""); err != nil {
+			log.Printf("start task %s: %v", next.ID, err)
 			return
 		}
 		ctx, cancel := context.WithCancel(context.Background())
@@ -451,7 +458,7 @@ func (s *Server) runTask(ctx context.Context, id string) {
 		s.mu.Unlock()
 		s.runs.Done()
 	}()
-	t, err := s.store.UpdateStatus(id, task.StatusRunning, "")
+	t, err := s.store.Get(id)
 	if err == nil {
 		rn, ok := s.runners.Get(t.Runner)
 		if !ok {

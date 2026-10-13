@@ -338,7 +338,7 @@ func TestCreateListGetTask(t *testing.T) {
 	if err := json.Unmarshal(rr.Body.Bytes(), &created); err != nil {
 		t.Fatal(err)
 	}
-	if created.ID == "" || created.Status != task.StatusQueued {
+	if created.ID == "" || created.Status != task.StatusRunning {
 		t.Fatalf("created %+v", created)
 	}
 	if created.VNCViewURL != "https://office.example/view" {
