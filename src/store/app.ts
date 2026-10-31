@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import { configureAuth } from "@/lib/auth";
 import { currentAddress, pairMachine, withAddresses, type Machine } from "@/lib/machines";
+import { historyStore } from "@/lib/historyStore";
 import { deleteSecret, getSecret, loadSecrets, setSecret, tokenAccount } from "@/lib/secrets";
 import { uid } from "@/lib/utils";
 import { log } from "@/store/log";
@@ -195,9 +196,11 @@ export const useApp = create<AppState>()(
         });
       },
       deleteMachine: (id) => {
-        for (const a of get().machines.find((m) => m.id === id)?.addresses ?? []) {
+        const machine = get().machines.find((m) => m.id === id);
+        for (const a of machine?.addresses ?? []) {
           deleteSecret(tokenAccount(a.id)).catch((err) => log(`keychain delete failed: ${String(err)}`, "error"));
         }
+        if (machine) forgetHistory(machine);
         const machines = get().machines.filter((m) => m.id !== id);
         const savedSessions = { ...get().savedSessions };
         delete savedSessions[id];
@@ -252,6 +255,11 @@ export async function loadMachineSecrets(): Promise<void> {
 }
 
 
+/** Deletes the machine's local copy of conversations (keyed like Chat.setMachine). */
+function forgetHistory(m: Machine): void {
+  historyStore.remove(m.serverId ?? m.id).catch((err) => log(`removing the local copy failed: ${String(err)}`, "error"));
+}
+
 /** The saved addresses at an origin, with their machine. */
 const addressesAt = (base: string) =>
   useApp.getState().machines.flatMap((m) => m.addresses.filter((a) => a.url.trim().replace(/\/$/, "") === base).map((a) => ({ m, a })));
@@ -262,7 +270,11 @@ configureAuth({
     const hit = addressesAt(base).find(({ a }) => !a.needsPairing);
     return hit && getSecret(tokenAccount(hit.a.id));
   },
+  // mobd no longer accepts this device (revoked or reset): its saved conversations go too.
   unauthorized: (base) => {
-    for (const { m, a } of addressesAt(base)) useApp.getState().markNeedsPairing(m.id, a.id);
+    for (const { m, a } of addressesAt(base)) {
+      useApp.getState().markNeedsPairing(m.id, a.id);
+      forgetHistory(m);
+    }
   },
 });

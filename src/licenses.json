@@ -1281,6 +1281,20 @@
   "source": "npm"
  },
  {
+  "name": "fallible-iterator",
+  "version": "0.3.0",
+  "license": "MIT/Apache-2.0",
+  "url": "https://github.com/sfackler/rust-fallible-iterator",
+  "source": "crate"
+ },
+ {
+  "name": "fallible-streaming-iterator",
+  "version": "0.1.9",
+  "license": "MIT/Apache-2.0",
+  "url": "https://github.com/sfackler/fallible-streaming-iterator",
+  "source": "crate"
+ },
+ {
   "name": "fastrand",
   "version": "2.5.0",
   "license": "Apache-2.0 OR MIT",
@@ -1313,6 +1327,13 @@
   "version": "1.0.7",
   "license": "Apache-2.0 / MIT",
   "url": "https://github.com/servo/rust-fnv",
+  "source": "crate"
+ },
+ {
+  "name": "foldhash",
+  "version": "0.1.5",
+  "license": "Zlib",
+  "url": "https://github.com/orlp/foldhash",
   "source": "crate"
  },
  {
@@ -1464,9 +1485,23 @@
  },
  {
   "name": "hashbrown",
+  "version": "0.15.5",
+  "license": "MIT OR Apache-2.0",
+  "url": "https://github.com/rust-lang/hashbrown",
+  "source": "crate"
+ },
+ {
+  "name": "hashbrown",
   "version": "0.17.1",
   "license": "MIT OR Apache-2.0",
   "url": "https://github.com/rust-lang/hashbrown",
+  "source": "crate"
+ },
+ {
+  "name": "hashlink",
+  "version": "0.10.0",
+  "license": "MIT OR Apache-2.0",
+  "url": "https://github.com/kyren/hashlink",
   "source": "crate"
  },
  {
@@ -1803,6 +1838,13 @@
   "version": "0.2.190",
   "license": "MIT OR Apache-2.0",
   "url": "https://github.com/rust-lang/libc",
+  "source": "crate"
+ },
+ {
+  "name": "libsqlite3-sys",
+  "version": "0.35.0",
+  "license": "MIT",
+  "url": "https://github.com/rusqlite/rusqlite",
   "source": "crate"
  },
  {
@@ -2769,6 +2811,13 @@
   "version": "0.17.14",
   "license": "Apache-2.0 AND ISC",
   "url": "https://github.com/briansmith/ring",
+  "source": "crate"
+ },
+ {
+  "name": "rusqlite",
+  "version": "0.37.0",
+  "license": "MIT",
+  "url": "https://github.com/rusqlite/rusqlite",
   "source": "crate"
  },
  {

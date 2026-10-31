@@ -1,7 +1,10 @@
 import type {
-  Activity, ChatMessage, Queue, Question, Session, SessionDetail, Task, TaskEvent, TaskStatus, TurnOptions,
+  Activity, ChatMessage, HistoryAnswer, Queue, Question, Session, SessionDetail, Task, TaskEvent, TaskStatus, TurnOptions,
 } from "../api/types.ts";
-import { authFetch, streamAuth, UnauthorizedError } from "./auth.ts";
+import { ApiError, authFetch, streamAuth, UnauthorizedError } from "./auth.ts";
+import {
+  joinTurns, MemoryHistory, mergeTurns, oldestSeq, splitTurns, type HistoryStore, type StoredTurn,
+} from "./history.ts";
 import { EventStream, type StreamEvent, type StreamOptions } from "./sse.ts";
 
 export type { Activity, ChatMessage, Question, Session, Task, TaskStatus };
@@ -16,6 +19,26 @@ export interface ChatStream {
 }
 
 export type StreamFactory = (url: string, options: StreamOptions) => ChatStream;
+
+/** Turns per history page, from mobd or the local copy. */
+const PAGE = 20;
+
+/** Whether the visible conversation is in step with mobd (see docs/conversation-history.md). */
+export type SyncState = "" | "syncing" | "offline" | "failed";
+
+/** fetch rejects with a TypeError when mobd cannot be reached at all. */
+export function unreachable(err: unknown): boolean {
+  return err instanceof TypeError;
+}
+
+/** A sync result before it is applied: the conversation to show and the turns to save. */
+interface Synced {
+  detail: SessionDetail;
+  turns: StoredTurn[];
+  replace: boolean;
+  storedFrom: number | null;
+  before: string | null;
+}
 
 export function terminal(status: TaskStatus): boolean {
   return status === "succeeded" || status === "failed" || status === "cancelled";
@@ -64,8 +87,23 @@ export class Chat {
   submitting = false;
   cancelling = false;
   error = "";
+  sync: SyncState = "";
+  olderLoading = false;
+  olderError = "";
 
   private url = "";
+  /** Office mobd serves paged history ("sessionHistory"); only then is the local copy used. */
+  private history = false;
+  /** The local copy's machine key (the serverId from pairing). */
+  private key = "";
+  /** The conversation list came from mobd, not the local copy. */
+  private listed = false;
+  /** The visible conversation's oldest saved turn, and mobd's cursor for the page before it. */
+  private storedFrom: number | null = null;
+  private before: string | null = null;
+  private saveTimer: ReturnType<typeof setTimeout> | null = null;
+  private writes: Promise<void> = Promise.resolve();
+  private store: HistoryStore;
   private revision = 0;
   /** mobd's revision of the visible conversation; undefined from mobd versions without it. */
   private rev: number | undefined;
@@ -78,10 +116,12 @@ export class Chat {
   private log: (line: string) => void;
   private stream: StreamFactory;
 
-  constructor(changed: () => void, log: (line: string) => void, stream: StreamFactory = (url, o) => new EventStream(url, o)) {
+  constructor(changed: () => void, log: (line: string) => void, stream: StreamFactory = (url, o) => new EventStream(url, o),
+    store: HistoryStore = new MemoryHistory()) {
     this.changed = changed;
     this.log = log;
     this.stream = stream;
+    this.store = store;
   }
 
   get baseUrl(): string {
@@ -97,12 +137,22 @@ export class Chat {
   }
 
   get canSend(): boolean {
-    return this.ready && !this.loading && !this.submitting && !this.busy && !this.error;
+    return this.ready && !this.loading && !this.submitting && !this.busy && !this.error && this.sync !== "offline";
   }
 
-  async setMachine(id: string, url: string, saved?: string | null): Promise<void> {
+  /** Turns before the oldest shown one exist, saved or on mobd. */
+  get hasOlder(): boolean {
+    return this.history && (this.tasks[0]?.seq ?? 1) > 1;
+  }
+
+  /** `key` names the machine's local copy: its serverId, so every address shares one. */
+  async setMachine(id: string, url: string, saved?: string | null, key = id): Promise<void> {
     this.machineId = id;
     this.url = url.replace(/\/$/, "");
+    this.key = key;
+    this.history = false;
+    this.listed = false;
+    this.sync = "";
     this.sessions = [];
     this.ready = false;
     this.newChat();
@@ -111,26 +161,60 @@ export class Chat {
     this.loading = true;
     this.changed();
     try {
-      await this.list(revision);
+      const [, history] = await Promise.all([this.list(revision), this.probe()]);
       if (revision !== this.revision) return;
+      this.history = !!history;
+      this.prune();
       this.ready = true;
       this.loading = false;
-      const selected = saved === null ? null :
-        this.sessions.find((s) => s.id === saved)?.id ?? this.sessions[0]?.id;
-      if (selected) await this.open(selected);
-      else this.changed();
+      await this.select(saved);
     } catch (err) {
-      if (revision === this.revision) {
-        this.loading = false;
-        this.fail(err);
-      }
+      if (revision !== this.revision) return;
+      this.loading = false;
+      // Unreachable: the conversations saved on this device can still be read.
+      const local = unreachable(err) ? await this.store.list(key).catch(() => []) : [];
+      if (revision !== this.revision) return;
+      if (!local.length) return this.fail(err);
+      this.log(`mobd unreachable; showing ${local.length} saved conversations`);
+      this.history = true;
+      this.sessions = local.sort((a, b) => (b.updatedAt ?? "").localeCompare(a.updatedAt ?? ""));
+      this.ready = true;
+      this.sync = "offline";
+      await this.select(saved);
     }
+  }
+
+  private async select(saved?: string | null): Promise<void> {
+    const selected = saved === null ? null :
+      this.sessions.find((s) => s.id === saved)?.id ?? this.sessions[0]?.id;
+    if (selected) await this.open(selected);
+    else this.changed();
+  }
+
+  /** Whether mobd serves paged history; null when /health did not answer. */
+  private async probe(): Promise<boolean | null> {
+    try {
+      const health = await this.request<{ features?: string[] }>(`${this.url}/health`);
+      return !!health.features?.includes("sessionHistory");
+    } catch {
+      return null;
+    }
+  }
+
+  /** Conversations deleted on mobd while this device was away leave the local copy too. */
+  private prune(): void {
+    if (!this.history) return;
+    const key = this.key;
+    const ids = this.sessions.map((s) => s.id);
+    this.writes = this.writes.then(() => this.store.prune(key, ids)).catch((err) => this.log(`pruning the local copy failed: ${String(err)}`));
   }
 
   /** Leaves the machine: no requests until setMachine (e.g. while it needs pairing). */
   detach(): void {
     this.machineId = "";
     this.url = "";
+    this.history = false;
+    this.sync = "";
     this.sessions = [];
     this.ready = false;
     this.newChat();
@@ -165,32 +249,117 @@ export class Chat {
     this.tasks = [];
     this.activities = [];
     this.questions = [];
-    const cached = this.cache.get(id);
+    this.storedFrom = null;
+    this.before = null;
+    this.olderLoading = false;
+    this.olderError = "";
+    const cached = this.history ? undefined : this.cache.get(id);
     if (cached) this.apply(cached);
     this.error = "";
     this.loading = !cached;
     this.cancelling = false;
     this.changed();
     try {
-      const detail = mergeDetail(this.snapshot(), await this.detail(id, this.rev));
-      if (revision !== this.revision) return;
-      this.apply(detail);
+      if (this.history) {
+        // The saved copy shows at once; then only what changed since it is fetched.
+        const saved = await this.store.load(this.key, id, null, PAGE).catch((err) => {
+          this.log(`reading the local copy failed: ${String(err)}`);
+          return null;
+        });
+        if (revision !== this.revision) return;
+        if (saved?.turns.length) {
+          this.apply(joinTurns(saved.session, saved.turns, saved.syncRev || undefined));
+          this.storedFrom = saved.oldest;
+          this.before = saved.cursor;
+          this.loading = false;
+        }
+        this.sync = "syncing";
+        this.changed();
+        const synced = await this.fetchHistory(id);
+        if (revision !== this.revision) return;
+        this.applySynced(synced);
+      } else {
+        const detail = mergeDetail(this.snapshot(), await this.detail(id, this.rev));
+        if (revision !== this.revision) return;
+        this.apply(detail);
+      }
       this.loading = false;
       this.changed();
       this.subscribe();
     } catch (err) {
       if (revision === this.revision) {
         this.loading = false;
-        this.fail(err);
+        this.syncFailed(err);
       }
     }
+  }
+
+  /** Loads the turns before the oldest shown one: from the local copy, else from mobd. */
+  async loadOlder(): Promise<void> {
+    const first = this.tasks[0];
+    const session = this.session;
+    if (!this.hasOlder || this.olderLoading || !session || !first?.seq) return;
+    const revision = this.revision;
+    const from = first.seq;
+    this.olderLoading = true;
+    this.olderError = "";
+    this.changed();
+    try {
+      let page: SessionDetail | null = null;
+      if (this.storedFrom !== null && this.storedFrom < from) {
+        const saved = await this.store.load(this.key, session.id, from, PAGE).catch(() => null);
+        if (saved?.turns.length) page = joinTurns(session, saved.turns);
+      }
+      if (!page) {
+        if (!this.before) throw new Error("mobd gave no cursor for older messages.");
+        const answer = await this.historyRequest(session.id, `before=${encodeURIComponent(this.before)}&limit=${PAGE}`);
+        if (revision !== this.revision) return;
+        const turns = splitTurns(answer);
+        if (answer.before && turns.length) turns[0].cursor = answer.before;
+        this.storedFrom = oldestSeq(answer);
+        this.before = answer.before ?? null;
+        page = { ...answer, session: { ...session, messages: answer.session.messages } };
+        this.save(turns);
+      }
+      if (revision !== this.revision) return;
+      // Older pages never move the sync baseline.
+      const merged = mergeTurns(this.snapshot(), page, oldestSeq(page) ?? from);
+      merged.rev = this.rev;
+      this.apply(merged);
+    } catch (err) {
+      if (revision !== this.revision) return;
+      this.log(`loading older turns failed: ${String(err)}`);
+      this.olderError = unreachable(err) ? "Older messages aren't available offline" : "Couldn't load older messages";
+    } finally {
+      if (revision === this.revision) {
+        this.olderLoading = false;
+        this.changed();
+      }
+    }
+  }
+
+  /** Returning to the app: catches up with what changed meanwhile. */
+  resync(): void {
+    if (!this.history || !this.sessionId || this.sync === "syncing" || this.recovering !== null) return;
+    if (!this.listed) void this.refresh();
+    else void this.recover(this.revision, true);
+  }
+
+  /** Retry after "Couldn't sync" or "Offline". */
+  retrySync(): void {
+    if (!this.listed) void this.refresh();
+    else if (this.sessionId) void this.recover(this.revision, true);
   }
 
   async refresh(): Promise<void> {
     const revision = this.revision;
     try {
-      await this.list(revision);
+      // After starting offline, /health tells whether mobd still serves paged history.
+      const [, history] = await Promise.all([this.list(revision), this.listed ? null : this.probe()]);
       if (revision !== this.revision) return;
+      if (history !== null) this.history = history;
+      this.prune();
+      if (this.sync === "offline") this.sync = "";
       this.ready = true;
       if (this.sessionId) await this.open(this.sessionId);
       else {
@@ -238,6 +407,7 @@ export class Chat {
         updatedAt: t.createdAt ?? new Date().toISOString() }, ...this.sessions.filter((s) => s.id !== t.sessionId)];
       this.cursor = t.eventId;
       this.changed();
+      this.saveCurrent();
       this.subscribe();
       // The POST acknowledgement is enough to clear the composer; history recovers separately.
       void this.recover(revision);
@@ -328,6 +498,10 @@ export class Chat {
   }
 
   removeSession(id: string): void {
+    if (this.history) {
+      const key = this.key;
+      this.writes = this.writes.then(() => this.store.remove(key, id)).catch((err) => this.log(`removing the local copy failed: ${String(err)}`));
+    }
     if (!this.sessions.some((s) => s.id === id) && this.sessionId !== id) return;
     this.sessions = this.sessions.filter((s) => s.id !== id);
     if (this.sessionId === id) this.newChat();
@@ -385,7 +559,7 @@ export class Chat {
     }
     if (res.status === 204) return undefined as T;
     const data = await res.json();
-    if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+    if (!res.ok) throw new ApiError(data.error || `HTTP ${res.status}`, res.status, data.code);
     return data as T;
   }
 
@@ -394,8 +568,101 @@ export class Chat {
     if (!Array.isArray(data.sessions)) throw new Error("Invalid session list from mobd.");
     if (revision === this.revision) {
       this.sessions = data.sessions;
+      this.listed = true;
       this.changed();
     }
+  }
+
+  private async historyRequest(id: string, query: string): Promise<HistoryAnswer> {
+    const data = await this.request<HistoryAnswer>(`${this.url}/sessions/${id}/history?${query}`);
+    if (data.session?.id !== id || (data.tasks != null && !Array.isArray(data.tasks))) {
+      throw new Error("Invalid session history from mobd.");
+    }
+    data.tasks ??= [];
+    data.session.messages ??= [];
+    return data;
+  }
+
+  /**
+   * What changed since the saved revision, merged into the visible conversation; without a
+   * saved copy, or when mobd answers `reset`, the newest page replaces it.
+   */
+  private async fetchHistory(id: string): Promise<Synced> {
+    if (this.rev && this.tasks.length) {
+      const d = await this.historyRequest(id, `since=${this.rev}&limit=50`);
+      if (!d.reset) {
+        const from = this.tasks[0]?.seq ?? 0;
+        const detail = mergeTurns(this.snapshot(), d, from);
+        detail.rev = d.rev;
+        // A changed turn inside the saved range is saved even when it is not shown yet.
+        const low = this.storedFrom ?? from;
+        const ids = new Set(d.tasks.filter((t) => (t.seq ?? low) >= low).map((t) => t.id));
+        return { detail, turns: splitTurns(d, ids), replace: false, storedFrom: this.storedFrom ?? from, before: this.before };
+      }
+      this.log("history reset by mobd; loading the newest page");
+    }
+    const page = await this.historyRequest(id, `limit=${PAGE}`);
+    const turns = splitTurns(page);
+    if (page.before && turns.length) turns[0].cursor = page.before;
+    return { detail: page, turns, replace: true, storedFrom: oldestSeq(page), before: page.before ?? null };
+  }
+
+  private applySynced(s: Synced): void {
+    this.apply(s.detail);
+    this.storedFrom = s.storedFrom;
+    this.before = s.before;
+    this.sync = "";
+    this.save(s.turns, s.replace);
+  }
+
+  /** A failed open or sync: a saved copy stays readable; a conversation gone from mobd is removed. */
+  private syncFailed(err: unknown): void {
+    const id = this.sessionId;
+    if (this.history && id && err instanceof ApiError && err.status === 404) {
+      this.log(`conversation ${id} is gone from mobd`);
+      this.removeSession(id);
+      return;
+    }
+    if (this.history && !(err instanceof UnauthorizedError) && (this.tasks.length || unreachable(err))) {
+      this.log(`sync failed: ${String(err)}`);
+      this.sync = unreachable(err) ? "offline" : "failed";
+      if (!this.tasks.length) this.error = "The office computer is unreachable, and this conversation isn't saved on this device.";
+      this.changed();
+      return;
+    }
+    this.fail(err);
+  }
+
+  /** Queues a write of `turns` and the session row to the local copy, never blocking the view. */
+  private save(turns: StoredTurn[], replace = false): void {
+    const session = this.session;
+    if (!this.history || !session || (!turns.length && !replace)) return;
+    const key = this.key;
+    const rev = this.rev ?? 0;
+    const keep = [session.id, ...this.sessions.filter((s) => !terminal(s.status)).map((s) => s.id)];
+    // Copied now: events keep changing the live objects.
+    const data = structuredClone({ session, turns });
+    this.writes = this.writes.then(() => this.store.save(key, data.session, rev, data.turns, replace, keep))
+      .catch((err) => this.log(`saving the local copy failed: ${String(err)}`));
+  }
+
+  /** Saves the current turn now (it finished, or the conversation is left). */
+  private saveCurrent(): void {
+    if (this.saveTimer) clearTimeout(this.saveTimer);
+    this.saveTimer = null;
+    const s = this.snapshot();
+    const t = this.currentTask;
+    if (s && t) this.save(splitTurns(s, new Set([t.id])));
+  }
+
+  /** While a turn runs, saves it at most every 5 seconds rather than per event. */
+  private saveSoon(): void {
+    if (!this.history || this.saveTimer) return;
+    const revision = this.revision;
+    this.saveTimer = setTimeout(() => {
+      this.saveTimer = null;
+      if (revision === this.revision) this.saveCurrent();
+    }, 5000);
   }
 
   /** With `since`, mobd may answer only the turns changed after that revision (see mergeDetail). */
@@ -488,6 +755,7 @@ export class Chat {
             if (terminal(data.status)) {
               this.session.activeTaskId = undefined;
               this.cancelling = false;
+              this.saveCurrent();
               this.stop();
               void this.recover(revision);
             }
@@ -495,6 +763,7 @@ export class Chat {
           } else if (type === "error") {
             this.fail(new Error(data.message || "Runner error"));
           }
+          if (!terminal(task.status)) this.saveSoon();
         } catch (err) {
           this.log(`event decode failed: ${String(err)}`);
         }
@@ -505,31 +774,42 @@ export class Chat {
       if (raw && typeof raw === "object" && "data" in raw) return;
       this.log("SSE interrupted; reconnecting and restoring history");
       // The stream reconnects after its last event ID. A snapshot also recovers daemon restarts.
-      void this.recover(revision);
+      void this.recover(revision, true);
     };
   }
 
-  private async recover(revision: number): Promise<void> {
+  /** `indicate` shows "Syncing…" (reconnecting, returning to the app); routine refreshes show nothing. */
+  private async recover(revision: number, indicate = false): Promise<void> {
     if (this.recovering === revision || !this.sessionId) return;
     this.recovering = revision;
     const id = this.sessionId;
+    if (indicate && this.history) {
+      this.sync = "syncing";
+      this.changed();
+    }
     try {
-      const detail = mergeDetail(this.snapshot(), await this.detail(id, this.rev));
+      const synced = this.history ? await this.fetchHistory(id) : null;
+      const detail = synced?.detail ?? mergeDetail(this.snapshot(), await this.detail(id, this.rev));
       if (revision !== this.revision) return;
       const latest = detail.tasks[detail.tasks.length - 1];
       const current = this.currentTask;
       // An in-flight snapshot must not overwrite a newer event already displayed.
       if (!latest || latest.id !== current?.id || latest.eventId >= this.cursor || terminal(latest.status)) {
         const changedTask = latest?.id !== current?.id;
-        this.apply(detail);
+        if (synced) this.applySynced(synced);
+        else this.apply(detail);
         this.error = "";
         if (!this.busy) this.stop();
         else if (changedTask || !this.source) this.subscribe();
+        this.changed();
+      } else if (this.sync === "syncing") {
+        this.sync = "";
         this.changed();
       }
       await this.list(revision);
     } catch (err) {
       this.log(`history recovery failed: ${String(err)}`);
+      if (this.history && revision === this.revision && !(err instanceof UnauthorizedError)) this.syncFailed(err);
       // A revoked credential ends the conversation view; reconnects would only repeat the 401.
       if (err instanceof UnauthorizedError && revision === this.revision) {
         this.stop();
@@ -549,6 +829,11 @@ export class Chat {
   private remember(): void {
     const s = this.snapshot();
     if (!s) return;
+    // A pending timer means the running turn changed since it was last saved.
+    if (this.history) {
+      if (this.saveTimer) this.saveCurrent();
+      return;
+    }
     this.cache.delete(s.session.id);
     this.cache.set(s.session.id, s);
     if (this.cache.size > 8) this.cache.delete(this.cache.keys().next().value!);

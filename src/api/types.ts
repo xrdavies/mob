@@ -34,6 +34,10 @@ export interface Task {
   queueReason?: QueueReason;
   /** True while the turn waits for the user to answer a question. */
   waiting?: boolean;
+  /** The conversation revision of this turn's last change (mobd with "sessionHistory"). */
+  rev?: number;
+  /** The turn's 1-based position in its conversation; it never changes. */
+  seq?: number;
 }
 
 export interface ChatMessage {
@@ -61,6 +65,8 @@ export interface Session {
   createdAt?: string;
   updatedAt?: string;
   messages?: ChatMessage[];
+  /** The number of turns (mobd with "sessionHistory"). */
+  turns?: number;
 }
 
 export type ActivityKind = "tool" | "command" | "reasoning" | "plan" | "file_change" | "web_search" | "notice";
@@ -114,6 +120,16 @@ export interface SessionDetail {
   rev?: number;
   /** False when this answers `since` with only the turns changed after it. */
   full?: boolean;
+}
+
+/** GET /sessions/{id}/history: a page of whole turns, or the changes since a revision. */
+export interface HistoryAnswer extends SessionDetail {
+  rev: number;
+  /** A page: older turns exist, and `before` fetches the page before this one. */
+  hasMore?: boolean;
+  before?: string;
+  /** Changes: mobd could not answer them; drop the saved turns and load the newest page. */
+  reset?: boolean;
 }
 
 export interface TaskEvent {
