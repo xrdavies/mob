@@ -11,13 +11,17 @@ pub fn run() {
             secret_delete,
             secret_storage_info,
             clipboard_read_text,
-            transfers::transfer_import,
+            transfers::transfer_stage,
             transfers::transfer_read,
             transfers::transfer_size,
             transfers::transfer_append,
             transfers::transfer_digest,
             transfers::transfer_discard,
-            transfers::transfer_export
+            transfers::transfer_place,
+            transfers::local_places,
+            transfers::local_list,
+            transfers::local_walk,
+            transfers::local_reveal
         ])
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_dialog::init())

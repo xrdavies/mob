@@ -6,7 +6,6 @@ use std::{
     path::{Path, PathBuf},
 };
 use tauri::Manager;
-use tauri_plugin_dialog::DialogExt;
 
 const CHUNK: usize = 4 * 1024 * 1024;
 
@@ -47,54 +46,45 @@ fn digest(file: &Path) -> std::io::Result<String> {
 }
 
 #[derive(Serialize)]
-pub struct ImportedFile {
-    id: String,
+pub struct StagedFile {
     name: String,
     size: u64,
     sha256: String,
 }
 
+/// Copies a local file into private staging under the transfer ID and hashes the copy, so the
+/// upload sends exactly what was checked even if the original changes meanwhile.
 #[tauri::command]
-pub async fn transfer_import(app: tauri::AppHandle) -> Result<Option<ImportedFile>, String> {
+pub async fn transfer_stage(
+    app: tauri::AppHandle,
+    id: String,
+    source: String,
+) -> Result<StagedFile, String> {
+    let dest = path(&app, &id)?;
+    let source = absolute(&source)?;
     tauri::async_runtime::spawn_blocking(move || {
-        let Some(selected) = app
-            .dialog()
-            .file()
-            .set_title("Upload a file")
-            .blocking_pick_file()
-        else {
-            return Ok(None);
-        };
-        let source = selected.into_path().map_err(|e| e.to_string())?;
         let before = fs::metadata(&source).map_err(|e| e.to_string())?;
         if !before.is_file() || before.len() > 20 * 1024 * 1024 * 1024 {
             return Err("Choose a regular file up to 20 GiB".into());
         }
-        let id: String = rand::random::<[u8; 16]>()
-            .iter()
-            .map(|b| format!("{b:02x}"))
-            .collect();
-        let dest = path(&app, &id)?;
         let result = (|| {
             fs::copy(&source, &dest).map_err(|e| e.to_string())?;
             let after = fs::metadata(&source).map_err(|e| e.to_string())?;
             if before.len() != after.len() || before.modified().ok() != after.modified().ok() {
-                return Err("File changed while preparing the upload; select it again".into());
+                return Err("File changed while preparing the upload; upload it again".into());
             }
-            let sha256 = digest(&dest).map_err(|e| e.to_string())?;
-            Ok(Some(ImportedFile {
-                id,
+            Ok(StagedFile {
                 name: source
                     .file_name()
                     .unwrap_or_default()
                     .to_string_lossy()
                     .into(),
                 size: before.len(),
-                sha256,
-            }))
+                sha256: digest(&dest).map_err(|e| e.to_string())?,
+            })
         })();
         if result.is_err() {
-            let _ = fs::remove_file(dest);
+            let _ = fs::remove_file(&dest);
         }
         result
     })
@@ -174,43 +164,217 @@ pub async fn transfer_discard(app: tauri::AppHandle, id: String) -> Result<(), S
     }
 }
 
+/// Moves a verified download into dir, never replacing a file: an existing name gets " (1)", " (2)"…
+/// Returns the path it was saved to.
+fn place(source: &Path, dir: &Path, name: &str) -> Result<PathBuf, String> {
+    if name.is_empty() || name == "." || name == ".." || name.contains(['/', '\\']) {
+        return Err("Invalid file name".into());
+    }
+    let stem = Path::new(name)
+        .file_stem()
+        .unwrap_or_default()
+        .to_string_lossy();
+    let ext = Path::new(name)
+        .extension()
+        .map(|e| format!(".{}", e.to_string_lossy()))
+        .unwrap_or_default();
+    for n in 0..1000 {
+        let target = if n == 0 {
+            dir.join(name)
+        } else {
+            dir.join(format!("{stem} ({n}){ext}"))
+        };
+        // A hard link is atomic and refuses an existing name; across disks, copy into a new file.
+        match fs::hard_link(source, &target) {
+            Ok(()) => {
+                let _ = fs::remove_file(source);
+                return Ok(target);
+            }
+            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => continue,
+            Err(_) => {}
+        }
+        let mut output = match OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&target)
+        {
+            Ok(file) => file,
+            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => continue,
+            Err(e) => return Err(e.to_string()),
+        };
+        let copied = File::open(source)
+            .and_then(|mut input| std::io::copy(&mut input, &mut output))
+            .and_then(|_| output.sync_all());
+        if let Err(e) = copied {
+            let _ = fs::remove_file(&target);
+            return Err(e.to_string());
+        }
+        let _ = fs::remove_file(source);
+        return Ok(target);
+    }
+    Err("Too many files with that name".into())
+}
+
 #[tauri::command]
-pub async fn transfer_export(
+pub async fn transfer_place(
     app: tauri::AppHandle,
     id: String,
+    dir: String,
     name: String,
-) -> Result<bool, String> {
+) -> Result<String, String> {
+    let source = path(&app, &id)?;
+    let dir = absolute(&dir)?;
     tauri::async_runtime::spawn_blocking(move || {
-        let source = path(&app, &id)?;
-        let Some(selected) = app
-            .dialog()
-            .file()
-            .set_title("Save downloaded file")
-            .set_file_name(&name)
-            .blocking_save_file()
-        else {
-            return Ok(false);
-        };
-        let dest = selected.into_path().map_err(|e| e.to_string())?;
-        let temp = dest.with_file_name(format!(".mob-download-{id}.tmp"));
-        let mut created = false;
-        let result = (|| {
-            let mut output = OpenOptions::new()
-                .write(true)
-                .create_new(true)
-                .open(&temp)?;
-            created = true;
-            std::io::copy(&mut File::open(source)?, &mut output)?;
-            output.sync_all()?;
-            fs::rename(&temp, &dest)
-        })();
-        if result.is_err() && created {
-            let _ = fs::remove_file(temp);
-        }
-        result.map(|_| true).map_err(|e| e.to_string())
+        place(&source, &dir, &name).map(|p| p.to_string_lossy().into_owned())
     })
     .await
     .map_err(|e| e.to_string())?
+}
+
+fn absolute(path: &str) -> Result<PathBuf, String> {
+    let path = PathBuf::from(path);
+    if !path.is_absolute() {
+        return Err("Expected an absolute path".into());
+    }
+    Ok(path)
+}
+
+#[derive(Serialize)]
+pub struct LocalPlaces {
+    home: String,
+    downloads: String,
+}
+
+#[tauri::command]
+pub fn local_places() -> Result<LocalPlaces, String> {
+    let home = dirs::home_dir().ok_or("No home folder")?;
+    let downloads = dirs::download_dir().unwrap_or_else(|| home.join("Downloads"));
+    Ok(LocalPlaces {
+        home: home.to_string_lossy().into(),
+        downloads: downloads.to_string_lossy().into(),
+    })
+}
+
+#[derive(Serialize)]
+pub struct LocalEntry {
+    name: String,
+    size: u64,
+    dir: bool,
+}
+
+/// One folder's visible entries (no dot names), following links like Finder does.
+#[tauri::command]
+pub async fn local_list(path: String) -> Result<Vec<LocalEntry>, String> {
+    let dir = absolute(&path)?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut entries = Vec::new();
+        for entry in fs::read_dir(&dir).map_err(|e| e.to_string())? {
+            let Ok(entry) = entry else { continue };
+            let Ok(name) = entry.file_name().into_string() else {
+                continue;
+            };
+            if name.starts_with('.') {
+                continue;
+            }
+            let Ok(meta) = fs::metadata(entry.path()) else {
+                continue;
+            };
+            if meta.is_dir() || meta.is_file() {
+                entries.push(LocalEntry {
+                    name,
+                    size: meta.len(),
+                    dir: meta.is_dir(),
+                });
+            }
+        }
+        Ok(entries)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[derive(Serialize)]
+pub struct WalkedFile {
+    path: String,
+    rel: String,
+    size: u64,
+}
+
+#[derive(Serialize)]
+pub struct Walk {
+    files: Vec<WalkedFile>,
+    folders: Vec<String>,
+}
+
+const WALK_LIMIT: usize = 10_000;
+
+/// A folder upload: every file and folder under path, as paths relative to its parent (so they
+/// start with the folder's own name). Dot names and links are skipped, as in the listing.
+fn walk(root: &Path) -> Result<Walk, String> {
+    let name = root
+        .file_name()
+        .and_then(|n| n.to_str())
+        .ok_or("Invalid folder name")?;
+    let mut out = Walk {
+        files: Vec::new(),
+        folders: vec![name.to_string()],
+    };
+    let mut stack = vec![(root.to_path_buf(), name.to_string())];
+    while let Some((dir, rel)) = stack.pop() {
+        for entry in fs::read_dir(&dir).map_err(|e| e.to_string())? {
+            let entry = entry.map_err(|e| e.to_string())?;
+            let Ok(name) = entry.file_name().into_string() else {
+                return Err(format!("{rel} has a file name that is not valid Unicode"));
+            };
+            if name.starts_with('.') {
+                continue;
+            }
+            let meta = entry.metadata().map_err(|e| e.to_string())?;
+            let child = format!("{rel}/{name}");
+            if meta.is_dir() {
+                out.folders.push(child.clone());
+                stack.push((entry.path(), child));
+            } else if meta.is_file() {
+                out.files.push(WalkedFile {
+                    path: entry.path().to_string_lossy().into(),
+                    rel: child,
+                    size: meta.len(),
+                });
+            }
+            if out.files.len() + out.folders.len() > WALK_LIMIT {
+                return Err("The folder has more than 10,000 items; upload part of it".into());
+            }
+        }
+    }
+    Ok(out)
+}
+
+#[tauri::command]
+pub async fn local_walk(path: String) -> Result<Walk, String> {
+    let root = absolute(&path)?;
+    tauri::async_runtime::spawn_blocking(move || walk(&root))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+/// Shows path in Finder (or the system file manager).
+#[tauri::command]
+pub fn local_reveal(path: String) -> Result<(), String> {
+    let path = absolute(&path)?;
+    #[cfg(target_os = "macos")]
+    let result = std::process::Command::new("open")
+        .arg("-R")
+        .arg(&path)
+        .spawn();
+    #[cfg(target_os = "windows")]
+    let result = std::process::Command::new("explorer")
+        .arg(format!("/select,{}", path.display()))
+        .spawn();
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    let result = std::process::Command::new("xdg-open")
+        .arg(path.parent().unwrap_or(&path))
+        .spawn();
+    result.map(|_| ()).map_err(|e| e.to_string())
 }
 
 #[cfg(test)]
@@ -229,5 +393,40 @@ mod tests {
         );
         fs::remove_file(path).unwrap();
         assert!(!valid_id("../settings.json"));
+    }
+
+    #[test]
+    fn placing_a_download_never_replaces_a_file() {
+        let dir = std::env::temp_dir().join(format!("mob-place-test-{}", rand::random::<u64>()));
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(dir.join("a.txt"), "old").unwrap();
+        for content in ["new", "newer"] {
+            let staged = dir.join(format!("staged-{content}"));
+            fs::write(&staged, content).unwrap();
+            place(&staged, &dir, "a.txt").unwrap();
+            assert!(!staged.exists());
+        }
+        assert_eq!(fs::read_to_string(dir.join("a.txt")).unwrap(), "old");
+        assert_eq!(fs::read_to_string(dir.join("a (1).txt")).unwrap(), "new");
+        assert_eq!(fs::read_to_string(dir.join("a (2).txt")).unwrap(), "newer");
+        assert!(place(&dir.join("a.txt"), &dir, "../x").is_err());
+        fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn walking_a_folder_keeps_its_name_and_skips_hidden_names() {
+        let root = std::env::temp_dir().join(format!("mob-walk-test-{}", rand::random::<u64>()));
+        let top = root.join("project");
+        fs::create_dir_all(top.join("src/empty")).unwrap();
+        fs::write(top.join("src/main.rs"), "x").unwrap();
+        fs::write(top.join(".DS_Store"), "x").unwrap();
+        fs::create_dir_all(top.join(".git")).unwrap();
+        let walked = walk(&top).unwrap();
+        let mut folders = walked.folders.clone();
+        folders.sort();
+        assert_eq!(folders, ["project", "project/src", "project/src/empty"]);
+        assert_eq!(walked.files.len(), 1);
+        assert_eq!(walked.files[0].rel, "project/src/main.rs");
+        fs::remove_dir_all(root).unwrap();
     }
 }
