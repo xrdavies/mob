@@ -260,7 +260,7 @@ export const WEBRTC_GRACE = 5_000;
  * WebRTC works again. Then the WebSocket races beside WebRTC instead of replacing it. */
 export const REMEMBERED_GRACE = 1_000;
 const IDLE: StreamState = { status: "idle", detail: "", width: 0, height: 0, transport: null, element: null, control: false, kbps: 0, loss: 0, readout: null, sound: "none", soundDetail: "" };
-const NO_WS_SOUND = "Sound needs a direct connection; it is not available over the WebSocket yet.";
+const NO_WS_SOUND = "Sound plays only over a direct (WebRTC) connection; this connection carries the picture only.";
 
 /** Resolves when ICE gathering completes, or after `ms`: host candidates take a few milliseconds. */
 function gathered(pc: RTCPeerConnection, ms: number): Promise<void> {

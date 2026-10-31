@@ -1,6 +1,6 @@
 # Remote desktop audio (desktop)
 
-Status: stage 1 (WebRTC) implemented on `feat/remote-audio`; WebSocket audio planned (stage 2).
+Status: implemented on `feat/remote-audio` (WebRTC). No sound over the WebSocket fallback, by decision.
 
 You hear the office computer's sound in the live view. The protocol, stages and capture are in
 [mobd's desktop audio doc](https://github.com/xrdavies/mobd/blob/main/docs/desktop-audio.md):
@@ -25,7 +25,7 @@ control channel.
   answers move the state to **on**, or to **unavailable**/**error** with the reason, muting the
   video. Off sends `on:false`, which stops mobd's capture, and mutes.
 - If the WebSocket carries the session, sound is **unavailable** ("needs a direct connection")
-  until stage 2.
+  by decision (mobd's doc: sound that stutters is worse than none).
 
 ## Lifecycle
 
@@ -48,10 +48,3 @@ reason as tooltip when unavailable. Volume is the system's.
   offered to an older mobd, refused playback falling back to muted.
 - By hand in WebKit (Playwright) against a mobd from the branch on this Mac: two-channel Opus
   received with real audio energy while system sounds played; off stopped the packets.
-
-## Stage 2 (planned)
-
-WebSocket audio frames (type `2`), decoded with WebCodecs `AudioDecoder` where the webview has it,
-else a bundled libopus decoder, played through an AudioWorklet with about 60 ms of buffer. Video
-keeps its current timing (no retiming against the audio clock). The packaged app must be checked
-in WKWebView, WebView2 and WebKitGTK.
