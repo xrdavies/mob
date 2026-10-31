@@ -4,6 +4,9 @@ The live view shows the office desktop streamed by mobd. Protocol, encoder and s
 [mobd desktop streaming](https://github.com/xrdavies/mobd/blob/main/docs/desktop-streaming.md).
 mobd without the `stream` feature in `/health` shows "Update mobd"; the panel then keeps showing snapshots.
 
+System audio is not implemented. See the [remote audio draft](desktop-audio.md)
+for WebRTC/WebSocket playback, sound controls and synchronization work.
+
 ## Files
 
 | File | Role |
