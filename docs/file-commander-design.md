@@ -4,6 +4,10 @@
 
 The Files dialog uses a two-pane file commander layout for transferring files between the office computer (mobd) and this device. The left pane shows the remote shared folder (`~/mob-files`), fixed and flat. The right pane shows the local filesystem with full directory navigation, starting in Downloads.
 
+## Opening Files
+
+**Files** is in the title bar next to **Desktop**, because the shared folder belongs to the machine, not to a conversation. ⌘K → **Open Files** does the same. Both are hidden when no machine is selected or the machine needs pairing.
+
 ## UI Layout
 
 ```
