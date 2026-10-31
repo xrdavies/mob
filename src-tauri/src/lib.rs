@@ -20,6 +20,11 @@ pub fn run() {
             transfers::transfer_export
         ])
         .plugin(tauri_plugin_process::init())
+        .plugin(
+            tauri_plugin_opener::Builder::new()
+                .open_js_links_on_click(false)
+                .build(),
+        )
         .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             if app.config().plugins.0.contains_key("updater") {

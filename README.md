@@ -12,6 +12,8 @@ Desktop **mob** client: dispatch tasks to the office agent, follow what it does 
 
 Design: [docs/ui.md](docs/ui.md) · Live view: [docs/desktop-streaming.md](docs/desktop-streaming.md) · Stack decision: [ADR 0009](docs/adr/0009-app-frontend-react.md) · API: [docs/mobd-v3.md](https://github.com/xrdavies/mobd/blob/main/docs/mobd-v3.md)
 
+Code navigation: [module and data-flow diagrams](docs/code-map.md).
+
 Logo: **Screen Buddy** — editable SVG sources, app icons and regeneration commands are in the [brand guide](docs/brand/README.md).
 
 Distribution: signed DMGs and Tauri updates use the public R2 download domain,
