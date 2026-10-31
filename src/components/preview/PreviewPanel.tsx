@@ -1,4 +1,4 @@
-import { ChevronDown, Eye, Expand, Gauge, MousePointer2, Power, RefreshCw, Shrink } from "lucide-react";
+import { ChevronDown, Eye, Expand, Gauge, MousePointer2, Power, RefreshCw, Shrink, Volume2, VolumeX } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { screenUrl, sessionDesktops, supports } from "@/api/client";
 import type { Health, Queue } from "@/api/types";
@@ -138,6 +138,29 @@ function QualityMenu({ machine, dark }: { machine: Machine; dark: boolean }) {
 }
 
 /** Connection quality as three bars, coloured when it degrades. */
+/** The desktop's sound: off until clicked (mobd with streamAudio, docs/desktop-audio.md). */
+function SoundButton({ dark }: { dark: boolean }) {
+  const s = useStream();
+  if (s.sound === "none") return null;
+  const on = s.sound === "on" || s.sound === "starting";
+  const blocked = s.sound === "unavailable" || s.sound === "error";
+  const tip = blocked ? s.soundDetail
+    : s.status !== "connected" ? "Sound plays once the live view is connected"
+    : on ? "Turn off the office computer's sound" : s.soundDetail || "Hear the office computer";
+  return (
+    <Tooltip content={tip}>
+      <span>
+        <Button variant="ghost" size="icon-sm" aria-label={on ? "Turn sound off" : "Turn sound on"} aria-pressed={on}
+          disabled={blocked || s.status !== "connected"}
+          className={cn(dark && "hover:bg-white/10", on ? "text-success" : dark ? "text-white/80" : undefined)}
+          onClick={() => stream.setSound(!on)}>
+          {s.sound === "starting" ? <Spinner /> : on ? <Volume2 /> : <VolumeX />}
+        </Button>
+      </span>
+    </Tooltip>
+  );
+}
+
 function SignalBars({ bars }: { bars: 1 | 2 | 3 }) {
   const on = bars === 3 ? "bg-success" : bars === 2 ? "bg-warning" : "bg-danger";
   return (
@@ -407,6 +430,7 @@ export function PreviewPanel({ machine, health, queue }: { machine: Machine; hea
             <span data-tauri-drag-region className="mr-1 flex items-center gap-1 text-[11px] text-white/45">
               {control ? <>Keys go to the office computer · switch to View, then <Kbd>Esc</Kbd></> : <><Kbd>Esc</Kbd> to collapse</>}
             </span>
+            <SoundButton dark />
             <QualityMenu machine={machine} dark />
             <Tooltip content={connected ? "Disconnect live view" : "Connect live view"}>
               <Button variant="ghost" size="icon-sm" aria-label={connected ? "Disconnect" : "Connect"}
@@ -436,6 +460,7 @@ export function PreviewPanel({ machine, health, queue }: { machine: Machine; hea
             </Tooltip>
           )}
           <div className="flex-1" />
+          <SoundButton dark={false} />
           <QualityMenu machine={machine} dark={false} />
           {/* Ends like the expanded toolbar: quality, power, then expand/collapse in the corner. */}
           <Tooltip content={connected ? "Disconnect live view" : "Connect live view"}>
