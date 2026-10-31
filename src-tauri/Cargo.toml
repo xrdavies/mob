@@ -1,6 +1,6 @@
 [package]
 name = "mob"
-version = "0.3.2"
+version = "0.4.0"
 description = "MOB desktop client — task dispatch, agent timeline and live desktop"
 authors = ["Frozen <1884084+xrdavies@users.noreply.github.com>"]
 edition = "2021"
