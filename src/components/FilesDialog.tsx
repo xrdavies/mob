@@ -49,16 +49,22 @@ export function FilesDialog({ machine, health, open, onOpenChange }: { machine: 
   const [localDir, setLocalDir] = useState<string>();
   const [local, setLocal] = useState<LocalEntry[]>();
   const [localSel, setLocalSel] = useState<string>();
+  const [localError, setLocalError] = useState("");
   useEffect(() => {
     if (open && isTauri && !places) void action(async () => { const p = await localPlaces(); setPlaces(p); setLocalDir(d => d ?? p.downloads); });
   }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
   const downloaded = tasks.filter(t => t.kind === "download" && t.status === "done");
-  const loadLocal = (dir = localDir) => dir ? action(async () => setLocal(sortEntries(await listLocal(dir)))) : Promise.resolve();
+  // A folder macOS has not allowed (Downloads, Documents, Desktop) fails here: say so in the pane.
+  const loadLocal = async (dir = localDir) => {
+    if (!dir) return;
+    try { setLocal(sortEntries(await listLocal(dir))); setLocalError(""); }
+    catch (e) { setLocal([]); setLocalError(/not permitted|denied/i.test(message(e)) ? `${isMac ? "macOS" : "The system"} has not allowed Mob to open this folder. Allow it in System Settings → Privacy & Security → Files and Folders, then refresh.` : message(e)); }
+  };
   useEffect(() => { if (open) void loadLocal(); }, [open, localDir, downloaded.length]); // eslint-disable-line react-hooks/exhaustive-deps
   // A download that lands in the open folder is selected, so it is easy to spot.
   const latest = downloaded.reduce<typeof downloaded[number] | undefined>((a, t) => (!a || (t.finishedAt ?? 0) > (a.finishedAt ?? 0) ? t : a), undefined);
   useEffect(() => { if (latest?.localPath && latest.localDir === localDir) setLocalSel(baseName(latest.localPath)); }, [latest?.id]); // eslint-disable-line react-hooks/exhaustive-deps
-  const openLocal = (dir: string) => { setLocalDir(dir); setLocal(undefined); setLocalSel(undefined); };
+  const openLocal = (dir: string) => { setLocalDir(dir); setLocal(undefined); setLocalSel(undefined); setLocalError(""); };
 
   // Transfers: the most recent finished one shows for a few seconds, then goes.
   const finished = tasks.filter(t => t.status === "done").sort((a, b) => (b.finishedAt ?? 0) - (a.finishedAt ?? 0));
@@ -105,7 +111,8 @@ export function FilesDialog({ machine, health, open, onOpenChange }: { machine: 
                 <ContextMenuItem danger disabled={!folders} onSelect={() => setDeleting(e)}>Delete…</ContextMenuItem>
               </>}
             />
-            <div className="flex flex-col items-center justify-center gap-2">
+            {/* A fixed height: the strip below comes and goes, and must not move these under the cursor. */}
+            <div className="flex flex-col items-center gap-2 pt-48">
               <Button variant="secondary" size="sm" disabled={!canUpload} onClick={() => void upload()} title="Upload the selected item to the office computer"><ArrowLeft /> Upload</Button>
               <Button variant="secondary" size="sm" disabled={!remoteEntry || remoteEntry.dir || !localDir} onClick={() => download()} title="Download the selected file to this folder">Download <ArrowRight /></Button>
             </div>
@@ -116,7 +123,7 @@ export function FilesDialog({ machine, health, open, onOpenChange }: { machine: 
               onRefresh={() => void loadLocal()}
               entries={local} selected={localSel} onSelect={setLocalSel}
               onOpen={e => localDir && openLocal(joinLocal(localDir, e.name))}
-              empty="This folder is empty."
+              empty={localError ? <>{localError}{places && localDir !== places.home && <Button variant="link" size="sm" className="mt-1 block w-full" onClick={() => openLocal(places.home)}>Go to Home</Button>}</> : "This folder is empty."}
               menu={e => <>
                 {e.dir && <ContextMenuItem onSelect={() => localDir && openLocal(joinLocal(localDir, e.name))}>Open</ContextMenuItem>}
                 <ContextMenuItem disabled={(e.dir && !folders) || (!folders && remoteDir !== "")} onSelect={() => void upload(e as LocalEntry)}>Upload</ContextMenuItem>
@@ -169,7 +176,7 @@ function Pane({ title, crumbs, onCrumb, upDisabled, onUp, onRefresh, entries, se
   title: string; crumbs: { label: string; target: string }[]; onCrumb: (target: string) => void;
   upDisabled: boolean; onUp: () => void; onRefresh: () => void;
   entries?: Entry[]; selected?: string; onSelect: (name: string) => void; onOpen: (entry: Entry) => void;
-  empty: string; menu: (entry: Entry) => ReactNode;
+  empty: ReactNode; menu: (entry: Entry) => ReactNode;
 }) {
   return <section aria-label={title} className="flex min-h-0 min-w-0 flex-col rounded-lg border">
     <header className="border-b px-3 py-2">
