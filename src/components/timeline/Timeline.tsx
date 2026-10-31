@@ -200,7 +200,24 @@ export function Timeline({ machineName }: { machineName: string }) {
   const scroller = useRef<HTMLDivElement>(null);
   const [pinned, setPinned] = useState(true);
   const [unseen, setUnseen] = useState(false);
-  const signature = `${chat.sessionId}:${items.length}:${chat.activities.length}:${chat.questions.length}:${chat.session?.messages?.at(-1)?.content.length ?? 0}:${chat.currentTask?.status}`;
+  // Only the newest turn counts as new output: older turns loaded above must not set "unseen".
+  const current = chat.currentTask;
+  const signature = [chat.sessionId, items.at(-1)?.id, current?.id, current?.status,
+    chat.activities.filter((a) => a.taskId === current?.id).length, chat.questions.filter((q) => q.taskId === current?.id).length,
+    chat.session?.messages?.at(-1)?.content.length ?? 0].join(":");
+  const firstId = items[0]?.id;
+  /** The first item and its offset after the last render, to keep it in place when older turns are prepended. */
+  const anchor = useRef<{ id?: string; top: number }>({ top: 0 });
+  const itemNode = (id: string) => scroller.current?.querySelector<HTMLElement>(`[data-item="${CSS.escape(id)}"]`);
+
+  useLayoutEffect(() => {
+    const el = scroller.current;
+    const prev = anchor.current;
+    if (!el || !prev.id || prev.id === firstId) return;
+    const node = itemNode(prev.id);
+    if (pinned) el.scrollTop = el.scrollHeight;
+    else if (node) el.scrollTop += node.offsetTop - prev.top;
+  }, [firstId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useLayoutEffect(() => {
     const el = scroller.current;
@@ -214,6 +231,19 @@ export function Timeline({ machineName }: { machineName: string }) {
     setUnseen(false);
   }, [chat.sessionId]);
 
+  // Recorded after every render, once the adjustments above are done.
+  useLayoutEffect(() => {
+    anchor.current = { id: firstId, top: (firstId && itemNode(firstId)?.offsetTop) || 0 };
+  });
+
+  /** Near the top, or when the turns shown do not fill the view, loads the page before them. */
+  const loadOlder = () => {
+    const el = scroller.current;
+    if (!el || !chat.hasOlder || chat.olderLoading || chat.olderError) return;
+    if (el.scrollTop < 400 || el.scrollHeight <= el.clientHeight + 400) void chat.loadOlder();
+  };
+  useEffect(loadOlder, [firstId, chat.olderLoading]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const lastFooter = [...items].reverse().find((i) => i.type === "footer")?.id;
   const empty = !chat.loading && !chat.sessionId && items.length === 0;
 
@@ -221,12 +251,14 @@ export function Timeline({ machineName }: { machineName: string }) {
     <div className="relative min-h-0 flex-1">
       <div
         ref={scroller}
-        className="h-full overflow-y-auto"
+        // Positioned, so item offsets are measured within it; the browser's own anchoring is off.
+        className="relative h-full overflow-y-auto [overflow-anchor:none]"
         onScroll={(e) => {
           const el = e.currentTarget;
           const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 48;
           setPinned(atBottom);
           if (atBottom) setUnseen(false);
+          loadOlder();
         }}
       >
         {empty ? (
@@ -240,8 +272,16 @@ export function Timeline({ machineName }: { machineName: string }) {
                 ))}
               </div>
             )}
+            {chat.olderError && (
+              <p className="flex items-center justify-center gap-1 text-xs text-muted-foreground">
+                {chat.olderError} ·
+                <Button variant="link" size="sm" className="h-auto px-0 text-xs" onClick={() => void chat.loadOlder()}>Retry</Button>
+              </p>
+            )}
             {items.map((item) => (
-              <Item key={item.id} item={item} base={base} last={item.id === lastFooter} />
+              <div key={item.id} data-item={item.id} className="grid grid-cols-[minmax(0,1fr)]">
+                <Item item={item} base={base} last={item.id === lastFooter} />
+              </div>
             ))}
             {chat.error && (
               <div className="rounded-lg border border-danger/25 bg-danger/5 px-3 py-2 text-[13px] text-danger">{chat.error}</div>
@@ -249,6 +289,11 @@ export function Timeline({ machineName }: { machineName: string }) {
           </div>
         )}
       </div>
+      {chat.olderLoading && (
+        <div className="pointer-events-none absolute left-1/2 top-2 flex -translate-x-1/2 items-center gap-1.5 rounded-full border bg-popover px-3 py-1 text-xs text-muted-foreground shadow-panel" role="status">
+          <Spinner /> Loading older messages
+        </div>
+      )}
       {unseen && !pinned && (
         <button
           type="button"
