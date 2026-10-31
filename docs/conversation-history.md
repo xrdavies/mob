@@ -1,59 +1,87 @@
-# Conversation history pagination and incremental sync
+# Conversation history: local copy and paging (desktop)
 
-Status: draft
+Status: planned on `feat/conversation-history`
 
-The desktop client should adopt the mobd history-page contract while keeping
-revision sync as the source of truth for live changes. See the shared protocol
-draft in [mobd](https://github.com/xrdavies/mobd/blob/main/docs/conversation-history.md).
+Mob Desktop keeps a local copy of each conversation and loads older turns as you scroll. The
+protocol is in [mobd](https://github.com/xrdavies/mobd/blob/main/docs/conversation-history.md):
+`GET /sessions/{id}/history` for pages and bounded changes, `seq` for turn order, `sessionHistory`
+in `/health`. Without that feature the app keeps today's full-snapshot request.
 
-## State and requests
+## Local copy
 
-`Chat` currently opens a session with `GET /sessions/{id}` and uses the cached
-detail revision for `?since=` refreshes. Extend that state with:
+SQLite through `rusqlite` (bundled) in the Tauri backend, in `history.sqlite` under the app data
+folder with mode 0700. No extra encryption: the folder is private to the user. Tables:
 
-- `syncRev`: the last revision completely merged;
-- `historyBefore`: the cursor for the oldest loaded page;
-- `historyHasMore` and one in-flight page request per session.
+- `turns`: one row per turn (machine, conversation, task ID, `seq`, `rev`, size) holding the JSON
+  of the turn with its messages, steps and questions;
+- `conversations`: the session row (title, flags), `syncRev`, oldest `seq` held, whether older
+  turns exist, last opened time and stored size;
+- `meta`: the schema version.
 
-On first open, request the newest history page (`limit=50`) and build the
-timeline from that page. Reopening a cached session continues to use
-`?since=<syncRev>`. On an older-page request, call
-`/sessions/{id}/history?before=<historyBefore>&limit=50` and merge tasks by ID.
-The page response must not replace newer task data already received from a
-revision sync.
+Rows are keyed by the machine's `serverId` from pairing (the local machine ID when absent), so
+every address of one office computer shares one copy. A corrupt file or a different schema
+version is deleted and rebuilt from mobd, which stays the source of truth.
 
-If the server does not advertise history paging, retain the existing full
-snapshot path. This keeps older mobd versions usable while clients roll out
-the new request.
+Writes go through one queue: when a turn finishes, and at most every 5 seconds while one runs,
+never for each streamed event.
 
-## Timeline behavior
+## Opening a conversation
 
-The timeline should load older history when the scroll container reaches its
-top. It must preserve the visible position when prepending a page: record the
-first visible item and its offset, insert the page, then restore that item and
-offset after layout. A page request is debounced by the in-flight guard and
-shows a small top loading state; errors leave the cursor unchanged and expose
-a retry action.
+1. Show the saved turns at once, if any.
+2. Sync: with a saved copy, `since=<syncRev>`; without one, the newest page. A `reset` answer drops
+   the saved turns and loads the newest page.
+3. Scrolling past the oldest held turn loads the page before it, saves it, and shows it.
 
-New output continues to follow the bottom only while the user is already near
-the bottom. Loading older pages must never jump the user to the bottom or mark
-new output as read. The existing `buildTimeline` ordering remains the single
-place that combines messages and activities.
+Merging is by task ID, keeping the higher `rev`. Only turns from the oldest held `seq` up are
+shown; a changed turn older than that is stored but not added to the end of the timeline, so it
+can never become the current turn.
 
-## Store and cache changes
+## Sync status
 
-Keep task, message, activity and question identity keyed by their existing IDs.
-When a revision response returns an old task that is outside the visible page,
-store its latest value without forcing that page into the viewport. When the
-page is later loaded, merge by task ID and keep the newer revision.
+| State | Shown |
+|---|---|
+| Opening a saved chat, returning to the app, reconnecting | Spinner and **Syncing…** next to the title |
+| Up to date | Nothing |
+| mobd unreachable | **Offline · showing saved copy** |
+| Sync failed while online | **Couldn't sync · Retry** |
+| Loading older turns | Spinner at the top of the timeline |
+| Older turns not saved, offline | **Older messages aren't available offline** |
 
-The existing in-memory recent-session cache may retain loaded pages and the
-two cursors. It remains disposable: after a process restart the client starts
-from the newest page again. Do not add disk persistence for this draft.
+The status appears only after about 300 ms, so a fast sync shows nothing. Routine refreshes show
+nothing unless they fail; a running turn keeps its live status. Reading and sending continue while
+syncing. Offline, saved conversations can be read; sending is disabled and images not cached show
+a placeholder.
+
+## Timeline
+
+Loading older turns preserves the scroll position: record the first visible item and its offset,
+prepend, then restore them after layout. It must not scroll to the bottom or set the "new output"
+state, which stays tied to new turns and output only. One page request at a time; an error leaves
+the cursor unchanged and offers Retry. Long timelines use `content-visibility: auto` on turn
+items; full virtualization only if that proves too slow.
+
+## Storage limit
+
+At most 500 MB per device. Above it, the app removes the saved turns of the least recently opened
+conversation, then the next, until it is under about 450 MB. A single conversation over the limit
+keeps its newest turns and loses its oldest. The open conversation and any with a running turn are
+never trimmed (the open one is trimmed when left). Conversations stay in the chat list; their
+removed turns load again from mobd when opened or scrolled to.
+
+Settings shows the space used and **Clear local copy**.
+
+## Removal
+
+- `session.deleted`, a `404`, or a conversation missing from the list after being offline:
+  delete it locally.
+- Removing a machine, or mobd revoking this device: delete that machine's copy.
+- The privacy page must describe the local copy (today it says "a cache of recent
+  conversations").
 
 ## Verification
 
-Add store tests for first-page loading, cursor paging, duplicate suppression,
-old-task revision updates, and fallback to the full snapshot. Add a timeline
-test that prepending a page preserves the first visible item and a reconnect
-test that merges an SSE gap through `since`.
+Store tests: first page, older pages, duplicate suppression, an old turn changed after paging is
+not appended, `reset`, full-snapshot fallback, eviction order, trimming an oversized conversation.
+Backend tests: schema, corrupt file rebuilt, mode 0700. Timeline test: prepending keeps the first
+visible item and does not set "new output". End to end against a local mobd: reopen after restart
+shows the saved copy before the network answers.
