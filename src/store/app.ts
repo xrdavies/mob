@@ -49,6 +49,7 @@ interface Ephemeral {
   /** An agent of the edited machine to bring into view ("" for its Agents section). */
   settingsFocus: string | null;
   paletteOpen: boolean;
+  filesOpen: boolean;
   fullscreen: boolean;
   /** Set to ask the desktop panel to connect the live view (from the command palette). */
   liveConnect: number;
@@ -127,6 +128,7 @@ export const useApp = create<AppState>()(
       editMachineId: null,
       settingsFocus: null,
       paletteOpen: false,
+      filesOpen: false,
       fullscreen: false,
       liveConnect: 0,
       set: (patch) => set(patch),

@@ -1,4 +1,4 @@
-import { Monitor, Moon, PanelLeft, RefreshCw, Search, Settings, Sun } from "lucide-react";
+import { Folder, Monitor, Moon, PanelLeft, RefreshCw, Search, Settings, Sun } from "lucide-react";
 import type { Health, Queue } from "@/api/types";
 import { ChecksList } from "@/components/settings/SettingsDialog";
 import { Button } from "@/components/ui/button";
@@ -96,6 +96,14 @@ export function TitleBar(props: {
           {props.dark ? <Sun /> : <Moon />}
         </Button>
       </Tooltip>
+      {/* The shared folder belongs to the machine, not to a conversation. */}
+      {props.machine && !needsPairing(props.machine) && (
+        <Tooltip content="Move files to and from the office computer">
+          <Button variant="ghost" size="sm" onClick={() => set({ filesOpen: true })} className="h-7 gap-1.5 px-2.5">
+            <Folder className="size-3.5" /> Files
+          </Button>
+        </Tooltip>
+      )}
       {props.machine && (
         <Tooltip content={`${previewOpen ? "Hide" : "Show"} the office desktop (${shortcut("B", true)})`}>
           <Button variant="ghost" size="sm" aria-pressed={previewOpen} onClick={() => togglePreview()}
