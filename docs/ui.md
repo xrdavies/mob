@@ -21,7 +21,7 @@
 - Human input is opt-in per use: the panel is always **view only**; only the expanded view has a **View | Control** switch, which starts on View and resets to View when the view collapses. Switching sends input over the open session's data channels (or the WebSocket); it does not reconnect.
 - Auth is pairing only: paste the link from `mobd link`; the credential stays in the system keyring (Keychain / Credential Manager / Secret Service), with an automatic encrypted-file fallback when that store is unavailable ([credential-storage.md](credential-storage.md)). No accounts or sign-in.
 - On Linux with WebKitGTK 2.54.0–2.54.1, native Ctrl+V can crash the process when the clipboard is empty or one-shot ([WebKit bug 324466](https://bugs.webkit.org/show_bug.cgi?id=324466)). The pairing field intercepts paste and reads via the OS clipboard API, and also offers a **Paste** button.
-- HTTP(S) links in agent replies open in the system default browser in the desktop app, with an inline error if opening fails. Browser development keeps normal web navigation. File paths retain the existing Markdown behavior; local file actions and remote file previews are not implemented.
+- HTTP(S) links in agent replies open in the default browser on the computer running the Mob client, not the remote computer running mobd, with an inline error if opening fails. This uses the client's native opener and does not require a request to mobd. Browser development keeps normal web navigation. File paths retain the existing Markdown behavior; local file actions and remote file previews are not implemented.
 - Machines are first-class; each has its own `mobd` URL (added by pairing) and its own live view quality.
 
 ---

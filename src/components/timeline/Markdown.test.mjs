@@ -61,6 +61,25 @@ test("HTTP links and URL queries retain their destination", async () => {
   assert.deepEqual(calls, [{ command: "plugin:opener|open_url", args: { url, with: undefined } }]);
 });
 
+test("reply table links open on the client without contacting the remote machine", async (context) => {
+  const network = context.mock.method(globalThis, "fetch", () => {
+    throw Error("Remote machine is unavailable");
+  });
+  const projects = [
+    ["Jolt Physics", "https://github.com/jrouwe/JoltPhysics"],
+    ["Terrain3D", "https://github.com/TokisanGames/Terrain3D"],
+    ["Material Maker", "https://github.com/RodZill4/material-maker"],
+  ];
+  await render(`| 项目 | 主要用途 |\n| --- | --- |\n${projects.map(([name, url]) => `| [${name}](${url}) | 游戏开发 |`).join("\n")}`);
+  const links = [...document.querySelectorAll("td a")];
+  assert.equal(links.length, projects.length);
+  for (const link of links) {
+    assert.equal((await click(link)).defaultPrevented, true);
+  }
+  assert.deepEqual(calls, projects.map(([, url]) => ({ command: "plugin:opener|open_url", args: { url, with: undefined } })));
+  assert.equal(network.mock.callCount(), 0);
+});
+
 test("browser failure is visible and a successful retry clears it", async () => {
   let failed = true;
   await render(`[Apple](${apple})`, () => { if (failed) throw Error("No default browser"); });
