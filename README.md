@@ -14,6 +14,10 @@ Design: [docs/ui.md](docs/ui.md) · Live view: [docs/desktop-streaming.md](docs/
 
 Planned, not implemented: [USB redirection](docs/usb-redirection.md), sharing selected local hardware with mobd through open-source USB/IP backends. The draft includes platform limits and links to mobd's Apple entitlement application.
 
+The [agent collaboration draft](docs/agent-collaboration.md) defines Desktop's
+agent references, request UI and recovery against the shared Mob vocabulary and
+mobd contract. Cross-agent messaging is not implemented by this documentation.
+
 Logo: **Screen Buddy** — editable SVG sources, app icons and regeneration commands are in the [brand guide](docs/brand/README.md).
 
 Distribution: signed DMGs and Tauri updates use the public R2 download domain,

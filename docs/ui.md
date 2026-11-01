@@ -5,6 +5,10 @@
 **Backend:** [mobd v3](https://github.com/xrdavies/mobd/blob/main/docs/mobd-v3.md). Features below name the API they depend on.
 **Status:** implemented. Gaps are listed under "Not yet implemented".
 
+The [agent collaboration draft](agent-collaboration.md) separately specifies
+agent/framework terminology, reference selection and request UI; these proposed
+additions are not implemented behavior described below.
+
 ---
 
 ## Design principles
