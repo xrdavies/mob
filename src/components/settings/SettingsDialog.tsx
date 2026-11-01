@@ -7,6 +7,8 @@ import {
 import { useCallback, useEffect, useMemo, useState, type ClipboardEvent, type KeyboardEvent, type ReactNode } from "react";
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { fetchHealth } from "@/api/client";
+import { formatBytes } from "@/lib/desktops";
+import { historyStore } from "@/lib/historyStore";
 import { QUALITIES } from "@/lib/stream";
 import type { Check, Health } from "@/api/types";
 import { Spinner } from "@/components/StatusIcon";
@@ -21,7 +23,7 @@ import { getSecretStorageInfo, type SecretStorageInfo } from "@/lib/secrets";
 import { cn } from "@/lib/utils";
 import { addressKind, addressLabel, currentAddress, hasAddress } from "@/lib/machines";
 import { baseUrl, needsPairing, useApp, type Machine, type Theme } from "@/store/app";
-import { useLog } from "@/store/log";
+import { log, useLog } from "@/store/log";
 
 const CHECK_LABELS: Record<string, string> = {
   codex: "Codex CLI",
@@ -464,6 +466,32 @@ function NotificationsSetting() {
   );
 }
 
+/** The local copy of conversations (docs/conversation-history.md): its size, and clearing it. */
+function LocalCopySetting() {
+  const [size, setSize] = useState<number | null>(null);
+  const [clearing, setClearing] = useState(false);
+  const measure = () => void historyStore.size().then(setSize, () => setSize(null));
+  useEffect(measure, []);
+  return (
+    <div className="grid gap-2">
+      <h3 className="text-[13px] font-semibold">Saved conversations</h3>
+      <p className="text-xs text-muted-foreground">
+        Conversations you open are saved on this computer, so they show at once and can be read while the office
+        computer is unreachable. Up to 500 MB; the least recently opened are removed first.
+      </p>
+      <p className="text-xs">{size === null ? "Size unknown" : `${formatBytes(size)} used`}</p>
+      <Button variant="secondary" className="w-fit" disabled={clearing || !size}
+        onClick={() => {
+          setClearing(true);
+          historyStore.clear().catch((err) => log(`clearing the local copy failed: ${String(err)}`, "error"))
+            .finally(() => { setClearing(false); measure(); });
+        }}>
+        Clear local copy
+      </Button>
+    </div>
+  );
+}
+
 function LogTab() {
   const { lines, clear } = useLog();
   const [filter, setFilter] = useState("");
@@ -508,7 +536,7 @@ export function SettingsDialog() {
           </div>
           <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto p-5 pt-11">
             <TabsContent value="machines" className="h-full"><MachinesTab /></TabsContent>
-            <TabsContent value="appearance"><div className="grid gap-6"><AppearanceTab /><NotificationsSetting /></div></TabsContent>
+            <TabsContent value="appearance"><div className="grid gap-6"><AppearanceTab /><NotificationsSetting /><LocalCopySetting /></div></TabsContent>
             <TabsContent value="log" className="h-full"><LogTab /></TabsContent>
             <TabsContent value="about">
               <div className="grid gap-1 text-[13px]">

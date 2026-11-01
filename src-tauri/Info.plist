@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <!-- Shown when Files opens one of these folders for the first time; merged by Tauri. -->
+  <key>NSDownloadsFolderUsageDescription</key>
+  <string>Mob shows your Downloads folder in Files and saves downloaded files there.</string>
+  <key>NSDocumentsFolderUsageDescription</key>
+  <string>Mob shows your Documents folder in Files so you can upload from it or download into it.</string>
+  <key>NSDesktopFolderUsageDescription</key>
+  <string>Mob shows your Desktop folder in Files so you can upload from it or download into it.</string>
+</dict>
+</plist>

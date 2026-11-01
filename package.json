@@ -1,7 +1,7 @@
 {
   "name": "mob",
   "private": true,
-  "version": "0.3.2",
+  "version": "0.4.0",
   "description": "MOB home Mac client — task dispatch, agent timeline and live desktop",
   "type": "module",
   "scripts": {

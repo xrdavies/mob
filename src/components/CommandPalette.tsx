@@ -1,15 +1,16 @@
-import { MessageSquare, Monitor, Moon, PanelLeft, Plug, Settings, SquarePen, Sun } from "lucide-react";
+import { Folder, MessageSquare, Monitor, Moon, PanelLeft, Plug, Settings, SquarePen, Sun } from "lucide-react";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { StatusIcon } from "@/components/StatusIcon";
 import { chat, useChat } from "@/hooks/useChat";
 import { stream } from "@/lib/stream";
-import { useApp } from "@/store/app";
+import { needsPairing, useApp } from "@/store/app";
 import { useComposer } from "@/store/composer";
 
 export function CommandPalette({ onConnect }: { onConnect: () => void }) {
   const { paletteOpen, machines, activeMachineId, set, selectMachine, openSettings, sidebarOpen, previewOpen } = useApp();
   const chatState = useChat();
+  const machine = machines.find((m) => m.id === activeMachineId);
   const close = () => set({ paletteOpen: false });
   const run = (fn: () => void) => () => {
     close();
@@ -29,6 +30,7 @@ export function CommandPalette({ onConnect }: { onConnect: () => void }) {
               <CommandItem onSelect={run(() => stream.disconnect())}><Plug /> Disconnect live view</CommandItem>
               <CommandItem onSelect={run(() => set({ sidebarOpen: !sidebarOpen }))}><PanelLeft /> Toggle sidebar</CommandItem>
               <CommandItem onSelect={run(() => useApp.getState().togglePreview())}><Monitor /> {previewOpen ? "Hide desktop" : "Show desktop"}</CommandItem>
+              {machine && !needsPairing(machine) && <CommandItem onSelect={run(() => set({ filesOpen: true }))}><Folder /> Open Files</CommandItem>}
               <CommandItem onSelect={run(() => set({ theme: "light" }))}><Sun /> Light theme</CommandItem>
               <CommandItem onSelect={run(() => set({ theme: "dark" }))}><Moon /> Dark theme</CommandItem>
               <CommandItem onSelect={run(() => openSettings())}><Settings /> Settings</CommandItem>

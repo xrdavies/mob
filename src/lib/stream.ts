@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from "react";
 import { supports } from "../api/client.ts";
 import type { Health } from "../api/types.ts";
-import { ApiError, authFetch, responseProblem } from "./auth.ts";
+import { ApiError, authFetch, responseProblem, UnauthorizedError } from "./auth.ts";
 import { NO_DESKTOP } from "./desktops.ts";
 import { buttonName, HeldInput, normalizePoint, remoteCode, wheelPixels, type InputMessage } from "./liveInput.ts";
 import { isMac } from "./platform.ts";
@@ -30,6 +30,8 @@ export interface StreamRequest {
   quality: Quality;
   /** The conversation whose desktop to show (required with sessionDesktops). */
   sessionId?: string;
+  /** Asks for the desktop's sound (mobd with streamAudio); the offer then has an audio section. */
+  audio?: boolean;
 }
 
 export interface StreamAnswer {
@@ -38,6 +40,8 @@ export interface StreamAnswer {
   wsTicket?: string;
   width: number;
   height: number;
+  /** The answer to `audio`: ready, or unavailable with a reason for the user. */
+  audio?: { status: string; reason?: string };
 }
 
 /** POST /stream; errors carry mobd's message (a locked screen, missing Screen Recording) and code. */
@@ -59,12 +63,41 @@ export async function openSession(base: string, req: StreamRequest): Promise<Str
   return data as StreamAnswer;
 }
 
+/**
+ * GET /stream/ice (mobd with streamIce): a Mob relay's STUN and TURN servers, with TURN credentials
+ * minted for this device. Through the relay they let the live view use WebRTC instead of the
+ * WebSocket. Any failure means host candidates only, as before.
+ */
+export async function fetchIceServers(base: string): Promise<RTCIceServer[]> {
+  try {
+    const res = await authFetch(base, `${base}/stream/ice`);
+    if (!res.ok) return [];
+    const data = (await res.json()) as { iceServers?: unknown };
+    if (!Array.isArray(data.iceServers)) return [];
+    return data.iceServers.filter((s): s is RTCIceServer =>
+      !!s && typeof s === "object" && Array.isArray((s as RTCIceServer).urls));
+  } catch (err) {
+    if (err instanceof UnauthorizedError) throw err;
+    return [];
+  }
+}
+
+/** Debugging: allow only relayed (TURN) candidates, to check the relay path from one network. */
+export const relayOnly = () => {
+  try {
+    return globalThis.localStorage?.getItem("mob.liveRelayOnly") === "1";
+  } catch {
+    return false;
+  }
+};
+
 /** DELETE /stream/{id}; best effort, the session also ends when the peer goes away. */
 export function closeSession(base: string, session: string): void {
   void authFetch(base, `${base}/stream/${encodeURIComponent(session)}`, { method: "DELETE" }).catch(() => {});
 }
 
 export type ControlMessage =
+  | { t: "audio"; state: string; message: string }
   | { t: "stats"; kbps: number; width: number; height: number; fps: number; loss?: number; rttMs?: number }
   | { t: "ended"; message: string }
   | { t: "error"; about?: string; message: string }
@@ -91,6 +124,8 @@ export function parseControl(data: unknown): ControlMessage | null {
       return { t: "error", about: str("about"), message: str("message") };
     case "cursor":
       return { t: "cursor", x: num("x"), y: num("y") };
+    case "audio":
+      return { t: "audio", state: str("state"), message: str("message") };
   }
   return null;
 }
@@ -194,6 +229,12 @@ export function signalBars(loss: number, rttMs?: number): 1 | 2 | 3 {
 
 export type LiveStatus = "idle" | "connecting" | "connected" | "error";
 
+/**
+ * The desktop's sound (docs/desktop-audio.md): "none" when mobd cannot share it, "off" until the
+ * user turns it on, "starting" until mobd confirms, "unavailable" or "error" with soundDetail.
+ */
+export type Sound = "none" | "off" | "starting" | "on" | "unavailable" | "error";
+
 export interface StreamState {
   status: LiveStatus;
   detail: string;
@@ -212,6 +253,9 @@ export interface StreamState {
   loss: number;
   /** Measured once a second while connected. */
   readout: Readout | null;
+  sound: Sound;
+  /** Why sound is unavailable or stopped. */
+  soundDetail: string;
 }
 
 export interface StreamTarget {
@@ -243,7 +287,8 @@ export const WEBRTC_GRACE = 5_000;
  * WebRTC, so a race from the start would keep such a machine on the WebSocket even on a network where
  * WebRTC works again. Then the WebSocket races beside WebRTC instead of replacing it. */
 export const REMEMBERED_GRACE = 1_000;
-const IDLE: StreamState = { status: "idle", detail: "", width: 0, height: 0, transport: null, element: null, control: false, kbps: 0, loss: 0, readout: null };
+const IDLE: StreamState = { status: "idle", detail: "", width: 0, height: 0, transport: null, element: null, control: false, kbps: 0, loss: 0, readout: null, sound: "none", soundDetail: "" };
+const NO_WS_SOUND = "Sound plays only over a direct (WebRTC) connection; this connection carries the picture only.";
 
 /** Resolves when ICE gathering completes, or after `ms`: host candidates take a few milliseconds. */
 function gathered(pc: RTCPeerConnection, ms: number): Promise<void> {
@@ -281,6 +326,8 @@ class StreamController {
   private held = new HeldInput();
   private detachInput: (() => void) | null = null;
   private statsTimer: ReturnType<typeof setInterval> | undefined;
+  /** The user turned sound on in this view; kept through reconnects, cleared when the view closes. */
+  private wantSound = false;
 
   subscribe = (l: () => void) => {
     this.listeners.add(l);
@@ -301,7 +348,7 @@ class StreamController {
       this.update({ status: "error", detail: UPDATE_MOBD });
       return;
     }
-    this.disconnect();
+    this.disconnect(true);
     const attempt = ++this.attempt;
     const started = performance.now();
     const ms = () => Math.round(performance.now() - started);
@@ -310,12 +357,35 @@ class StreamController {
     this.surfaces = surfaces;
     // WebKitGTK may have neither WebRTC nor WebCodecs: then the WebSocket alone, played through MSE.
     const decoder = wsDecoder();
-    const pc = typeof RTCPeerConnection !== "undefined" ? new RTCPeerConnection() : null;
+    // Through a Mob relay: its STUN/TURN servers, so WebRTC works where host candidates cannot.
+    let iceServers: RTCIceServer[] = [];
+    if (typeof RTCPeerConnection !== "undefined" && supports(target.health, "streamIce")) {
+      try {
+        iceServers = await fetchIceServers(target.base);
+      } catch (err) {
+        this.update({ ...IDLE, status: "error", detail: err instanceof Error ? err.message : String(err) });
+        return;
+      }
+      if (attempt !== this.attempt) return;
+    }
+    let pc: RTCPeerConnection | null = null;
+    if (typeof RTCPeerConnection !== "undefined") {
+      try {
+        pc = new RTCPeerConnection(iceServers.length ? { iceServers, iceTransportPolicy: relayOnly() ? "relay" : "all" } : undefined);
+      } catch (err) {
+        // A webview refusing the relay's servers still gets host candidates.
+        console.warn(`live: ICE servers refused (${err instanceof Error ? err.message : err}); host candidates only`);
+        pc = new RTCPeerConnection();
+      }
+    }
     if (!pc && !decoder) {
       this.update({ ...IDLE, status: "error", detail: "This system cannot play the live desktop (no WebRTC or H.264 playback in the webview)" });
       return;
     }
     this.pc = pc;
+    // Every view asks for sound where mobd shares it; it plays only after the user turns it on.
+    const audio = !!pc && supports(target.health, "streamAudio");
+    let audioReady = false;
     let transport: Transport | null = null;
     /** The WebSocket while it is trying, before either transport has won. */
     let player: WsPlayer | null = null;
@@ -340,6 +410,10 @@ class StreamController {
       this.via = t;
       clearTimeout(graceTimer);
       console.info(`live: ${t} carries the picture after ${ms()} ms`);
+      if (t === "WebSocket" && audioReady) {
+        audioReady = false;
+        this.update({ sound: "unavailable", soundDetail: NO_WS_SOUND });
+      }
       if (t === "WebRTC") {
         const p = player;
         player = null;
@@ -365,6 +439,7 @@ class StreamController {
         this.update({ status: "connected", detail: "", transport, element: this.surface === canvas ? "canvas" : "video" });
         if (transport === "WebRTC" && pc) this.watchStats(pc, attempt);
         if (target.control) this.setControl(true);
+        if (audioReady && this.wantSound) this.sendSound(true);
       }
       if (width !== this.state.width || height !== this.state.height) this.update({ width, height });
     };
@@ -374,7 +449,8 @@ class StreamController {
       if (m?.t === "stats") {
         lastRtt = m.rttMs || undefined;
         this.update({ kbps: m.kbps, loss: m.loss ?? 0 });
-      } else if (m?.t === "ended") fail(m.message);
+      } else if (m?.t === "audio") this.soundAnswer(m.state, m.message);
+      else if (m?.t === "ended") fail(m.message);
       else if (m?.t === "error") console.warn(`live: ${m.about}: ${m.message}`);
     };
 
@@ -399,7 +475,12 @@ class StreamController {
     });
     pc?.addEventListener("track", (e) => {
       if (attempt !== this.attempt) return;
-      video.srcObject = e.streams[0] ?? new MediaStream([e.track]);
+      // Video and sound share mobd's stream, so they arrive in one MediaStream played by the video.
+      const current = video.srcObject instanceof MediaStream ? video.srcObject : null;
+      if (e.streams[0]) {
+        if (current !== e.streams[0]) video.srcObject = e.streams[0];
+      } else if (current) current.addTrack(e.track);
+      else video.srcObject = new MediaStream([e.track]);
       void video.play().catch(() => {});
     });
     const onVideo = () => {
@@ -413,14 +494,19 @@ class StreamController {
       if (pc) {
         try {
           pc.addTransceiver("video", { direction: "recvonly" });
+          if (audio) pc.addTransceiver("audio", { direction: "recvonly" });
           this.controlChannel = pc.createDataChannel("control");
           this.input = pc.createDataChannel("input");
           this.pointer = pc.createDataChannel("pointer", { ordered: false, maxRetransmits: 0 });
           this.surface = video;
           this.detachInput = this.attachInput(video, () => [video.videoWidth, video.videoHeight]);
           this.controlChannel.onmessage = (e) => control(e.data);
+          this.controlChannel.onopen = () => {
+            if (attempt === this.attempt && audioReady && this.wantSound) this.sendSound(true);
+          };
           await pc.setLocalDescription(await pc.createOffer());
-          await gathered(pc, 2000);
+          // STUN and TURN answers take longer than host candidates.
+          await gathered(pc, iceServers.length ? 3000 : 2000);
           offer = pc.localDescription?.sdp ?? "";
         } catch (err) {
           // WebKitGTK can expose RTCPeerConnection without GStreamer's WebRTC plugins.
@@ -438,12 +524,21 @@ class StreamController {
         maxHeight: target.maxHeight,
         quality: target.quality ?? "auto",
         sessionId: target.sessionId,
+        audio: audio && offer ? true : undefined,
       });
       if (attempt !== this.attempt) {
         closeSession(target.base, answer.session);
         return;
       }
       this.session = { base: target.base, id: answer.session };
+      const asked = audio && !!offer;
+      if (asked && answer.audio?.status === "ready") {
+        audioReady = true;
+        this.update({ sound: this.wantSound ? "starting" : "off", soundDetail: "" });
+      } else if (asked) {
+        this.wantSound = false;
+        this.update({ sound: "unavailable", soundDetail: answer.audio?.reason || "This office computer cannot share its sound." });
+      }
       console.info(`live: answered in ${ms()} ms, ${answer.width}×${answer.height}`);
       if (answer.wsTicket && decoder) {
         const url = streamWsUrl(target.base, answer.session, answer.wsTicket);
@@ -498,6 +593,52 @@ class StreamController {
     const channel = kind === "input" ? this.input : this.pointer;
     if (channel?.readyState !== "open") return;
     for (const m of messages) channel.send(JSON.stringify(m));
+  }
+
+  /**
+   * Turns the desktop's sound on or off. Call it from the click: unmuting needs the user's gesture.
+   * Off stops mobd's capture, not just local playback.
+   */
+  setSound(on: boolean): void {
+    const video = this.surfaces?.video;
+    this.wantSound = on;
+    if (video) {
+      video.muted = !on;
+      if (on) void video.play().catch(() => {});
+    }
+    if (this.state.sound === "none" || this.state.sound === "unavailable") return;
+    this.update({ sound: on ? "starting" : "off", soundDetail: "" });
+    if (this.state.status === "connected") this.sendSound(on);
+  }
+
+  private sendSound(on: boolean) {
+    if (this.via !== "WebRTC" || this.controlChannel?.readyState !== "open") return;
+    this.controlChannel.send(JSON.stringify({ t: "audio", on }));
+  }
+
+  /** mobd's answer to "audio", or why the sound stopped. */
+  private soundAnswer(state: string, message: string) {
+    const video = this.surfaces?.video;
+    if (state === "on" && this.wantSound) {
+      this.update({ sound: "on", soundDetail: "" });
+      if (video && video.muted) {
+        // After a reconnect there is no click: the webview may refuse audible playback. Then stay
+        // muted, keep the picture, and let the user turn it on again.
+        video.muted = false;
+        void video.play().catch(() => {
+          video.muted = true;
+          void video.play().catch(() => {});
+          this.setSound(false);
+          this.update({ soundDetail: "Click the speaker to hear the office computer again." });
+        });
+      }
+    } else if (state === "off") {
+      if (!this.wantSound) this.update({ sound: "off", soundDetail: "" });
+    } else if (state === "unavailable" || state === "error") {
+      this.wantSound = false;
+      if (video) video.muted = true;
+      this.update({ sound: state, soundDetail: message || "The sound stopped." });
+    }
   }
 
   /** Refits the running session to a new view (mobd with streamResize); false if it cannot be sent. */
@@ -643,6 +784,7 @@ class StreamController {
       video.onloadeddata = null;
       video.onresize = null;
       video.srcObject = null;
+      video.muted = true;
     }
   }
 
@@ -665,7 +807,9 @@ class StreamController {
     this.controlChannel = null;
   }
 
-  disconnect(): void {
+  /** Ends the live view; the sound choice goes with it unless a reconnect keeps the view open. */
+  disconnect(keepSound = false): void {
+    if (!keepSound) this.wantSound = false;
     this.attempt++;
     this.teardown();
     if (this.state.status !== "idle") this.update({ ...IDLE, detail: "Disconnected" });

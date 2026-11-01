@@ -1,3 +1,4 @@
+mod history;
 mod secrets;
 mod transfers;
 
@@ -11,13 +12,24 @@ pub fn run() {
             secret_delete,
             secret_storage_info,
             clipboard_read_text,
-            transfers::transfer_import,
+            transfers::transfer_stage,
             transfers::transfer_read,
             transfers::transfer_size,
             transfers::transfer_append,
             transfers::transfer_digest,
             transfers::transfer_discard,
-            transfers::transfer_export
+            transfers::transfer_place,
+            transfers::local_places,
+            transfers::local_list,
+            transfers::local_walk,
+            transfers::local_reveal,
+            history::history_load,
+            history::history_list,
+            history::history_save,
+            history::history_remove,
+            history::history_prune,
+            history::history_clear,
+            history::history_size
         ])
         .plugin(tauri_plugin_process::init())
         .plugin(
@@ -27,6 +39,8 @@ pub fn run() {
         )
         .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
+            use tauri::Manager;
+            app.manage(history::History::new(app.path().app_data_dir()?.join("history.sqlite")));
             if app.config().plugins.0.contains_key("updater") {
                 app.handle()
                     .plugin(tauri_plugin_updater::Builder::new().build())?;
