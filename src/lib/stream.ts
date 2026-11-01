@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from "react";
 import { supports } from "../api/client.ts";
 import type { Health } from "../api/types.ts";
-import { ApiError, authFetch, responseProblem } from "./auth.ts";
+import { ApiError, authFetch, responseProblem, UnauthorizedError } from "./auth.ts";
 import { NO_DESKTOP } from "./desktops.ts";
 import { buttonName, HeldInput, normalizePoint, remoteCode, wheelPixels, type InputMessage } from "./liveInput.ts";
 import { isMac } from "./platform.ts";
@@ -62,6 +62,34 @@ export async function openSession(base: string, req: StreamRequest): Promise<Str
   if (typeof data.session !== "string" || !data.session) throw new Error("Invalid live desktop answer from mobd.");
   return data as StreamAnswer;
 }
+
+/**
+ * GET /stream/ice (mobd with streamIce): a Mob relay's STUN and TURN servers, with TURN credentials
+ * minted for this device. Through the relay they let the live view use WebRTC instead of the
+ * WebSocket. Any failure means host candidates only, as before.
+ */
+export async function fetchIceServers(base: string): Promise<RTCIceServer[]> {
+  try {
+    const res = await authFetch(base, `${base}/stream/ice`);
+    if (!res.ok) return [];
+    const data = (await res.json()) as { iceServers?: unknown };
+    if (!Array.isArray(data.iceServers)) return [];
+    return data.iceServers.filter((s): s is RTCIceServer =>
+      !!s && typeof s === "object" && Array.isArray((s as RTCIceServer).urls));
+  } catch (err) {
+    if (err instanceof UnauthorizedError) throw err;
+    return [];
+  }
+}
+
+/** Debugging: allow only relayed (TURN) candidates, to check the relay path from one network. */
+export const relayOnly = () => {
+  try {
+    return globalThis.localStorage?.getItem("mob.liveRelayOnly") === "1";
+  } catch {
+    return false;
+  }
+};
 
 /** DELETE /stream/{id}; best effort, the session also ends when the peer goes away. */
 export function closeSession(base: string, session: string): void {
@@ -329,7 +357,27 @@ class StreamController {
     this.surfaces = surfaces;
     // WebKitGTK may have neither WebRTC nor WebCodecs: then the WebSocket alone, played through MSE.
     const decoder = wsDecoder();
-    const pc = typeof RTCPeerConnection !== "undefined" ? new RTCPeerConnection() : null;
+    // Through a Mob relay: its STUN/TURN servers, so WebRTC works where host candidates cannot.
+    let iceServers: RTCIceServer[] = [];
+    if (typeof RTCPeerConnection !== "undefined" && supports(target.health, "streamIce")) {
+      try {
+        iceServers = await fetchIceServers(target.base);
+      } catch (err) {
+        this.update({ ...IDLE, status: "error", detail: err instanceof Error ? err.message : String(err) });
+        return;
+      }
+      if (attempt !== this.attempt) return;
+    }
+    let pc: RTCPeerConnection | null = null;
+    if (typeof RTCPeerConnection !== "undefined") {
+      try {
+        pc = new RTCPeerConnection(iceServers.length ? { iceServers, iceTransportPolicy: relayOnly() ? "relay" : "all" } : undefined);
+      } catch (err) {
+        // A webview refusing the relay's servers still gets host candidates.
+        console.warn(`live: ICE servers refused (${err instanceof Error ? err.message : err}); host candidates only`);
+        pc = new RTCPeerConnection();
+      }
+    }
     if (!pc && !decoder) {
       this.update({ ...IDLE, status: "error", detail: "This system cannot play the live desktop (no WebRTC or H.264 playback in the webview)" });
       return;
@@ -457,7 +505,8 @@ class StreamController {
             if (attempt === this.attempt && audioReady && this.wantSound) this.sendSound(true);
           };
           await pc.setLocalDescription(await pc.createOffer());
-          await gathered(pc, 2000);
+          // STUN and TURN answers take longer than host candidates.
+          await gathered(pc, iceServers.length ? 3000 : 2000);
           offer = pc.localDescription?.sdp ?? "";
         } catch (err) {
           // WebKitGTK can expose RTCPeerConnection without GStreamer's WebRTC plugins.

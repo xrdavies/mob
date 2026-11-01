@@ -144,3 +144,28 @@ test("a webview refusing audible playback after a reconnect falls back to muted"
   assert.match(stream.state.soundDetail, /Click the speaker/);
   assert.deepEqual(control.sent.at(-1), { t: "audio", on: false }, "mobd stops capturing");
 });
+
+test("through a Mob relay the view uses its STUN and TURN servers", async (t) => {
+  globalThis.RTCPeerConnection = class extends FakePC {
+    constructor(config) { super(); this.config = config; }
+  };
+  globalThis.performance ??= { now: () => Date.now() };
+  configureAuth({ token: () => "t", unauthorized: () => {} });
+  const urls = [];
+  const ice = [{ urls: ["stun:relay.example.com:3478"] }, { urls: ["turn:relay.example.com:3478?transport=udp"], username: "1:office", credential: "c" }];
+  t.mock.method(globalThis, "fetch", async (url) => {
+    urls.push(String(url));
+    if (String(url).endsWith("/stream/ice")) return new Response(JSON.stringify({ iceServers: ice, ttlSeconds: 43200 }));
+    return new Response(JSON.stringify({ session: "s1", answer: "v=0", width: 1, height: 1 }), { status: 201 });
+  });
+  const { stream } = await import("./stream.ts");
+  t.after(() => stream.disconnect());
+  await stream.connect({ video: fakeVideo(), canvas: fakeVideo() }, { base: "http://office", health: { apiVersion: 3, features: ["stream", "streamIce"] }, maxWidth: 1, maxHeight: 1 });
+  assert.deepEqual(FakePC.last.config, { iceServers: ice, iceTransportPolicy: "all" });
+  assert.ok(urls[0].endsWith("/stream/ice") && urls[1].endsWith("/stream"), "ICE servers before the offer");
+  stream.disconnect();
+  urls.length = 0;
+  await stream.connect({ video: fakeVideo(), canvas: fakeVideo() }, { base: "http://office", health: { apiVersion: 3, features: ["stream"] }, maxWidth: 1, maxHeight: 1 });
+  assert.equal(FakePC.last.config, undefined, "an older mobd: host candidates only");
+  assert.ok(!urls.some((u) => u.endsWith("/stream/ice")));
+});
