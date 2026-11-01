@@ -2,9 +2,9 @@
 
 Status: implemented on `feat/conversation-history`
 
-The [agent collaboration draft](agent-collaboration.md) proposes separate request
-summaries and revision sync alongside this turn cache. Those additions are not
-implemented; an old pending request must remain visible outside the loaded turns.
+The [agent collaboration draft](agent-collaboration.md) keeps pending requests
+visible independently of loaded chat turns. The shared architecture is proposed;
+its synchronization and cache details will be defined during implementation.
 
 Mob Desktop keeps a local copy of each conversation and loads older turns as you scroll. The
 protocol is in [mobd](https://github.com/xrdavies/mobd/blob/main/docs/conversation-history.md):
