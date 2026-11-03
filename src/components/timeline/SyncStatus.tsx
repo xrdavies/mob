@@ -21,7 +21,7 @@ export function SyncStatus() {
     ) : null;
   }
   if (chat.sync === "offline") {
-    return <span className="ml-2.5 shrink-0 text-xs text-muted-foreground" role="status">Offline · showing saved copy</span>;
+    return <span className="ml-2.5 shrink-0 text-xs text-muted-foreground" role="status">{chat.tasks.length ? "Offline · showing saved copy" : "Offline"}</span>;
   }
   if (chat.sync === "failed") {
     return (

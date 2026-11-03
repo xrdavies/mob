@@ -90,6 +90,8 @@ export class Chat {
   sync: SyncState = "";
   olderLoading = false;
   olderError = "";
+  /** The open conversation could not be loaded and nothing is shown; `retry()` tries again. */
+  loadError = "";
 
   private url = "";
   /** Office mobd serves paged history ("sessionHistory"); only then is the local copy used. */
@@ -233,6 +235,7 @@ export class Chat {
     this.activities = [];
     this.questions = [];
     this.error = "";
+    this.loadError = "";
     this.loading = false;
     this.cancelling = false;
     this.changed();
@@ -253,6 +256,8 @@ export class Chat {
     this.before = null;
     this.olderLoading = false;
     this.olderError = "";
+    this.loadError = "";
+    if (this.sync === "syncing" || this.sync === "failed") this.sync = "";
     const cached = this.history ? undefined : this.cache.get(id);
     if (cached) this.apply(cached);
     this.error = "";
@@ -339,7 +344,13 @@ export class Chat {
   }
 
   /** Returning to the app: catches up with what changed meanwhile. */
+  /** Tries again to load the open conversation after it failed with nothing shown. */
+  retry(): void {
+    if (this.sessionId && this.loadError && !this.loading) void this.open(this.sessionId);
+  }
+
   resync(): void {
+    if (this.loadError) return this.retry();
     if (!this.history || !this.sessionId || this.sync === "syncing" || this.recovering !== null) return;
     if (!this.listed) void this.refresh();
     else void this.recover(this.revision, true);
@@ -623,10 +634,19 @@ export class Chat {
       this.removeSession(id);
       return;
     }
-    if (this.history && !(err instanceof UnauthorizedError) && (this.tasks.length || unreachable(err))) {
+    if (!this.tasks.length && !(err instanceof UnauthorizedError)) {
+      // Nothing to show: say why in place of the conversation, with Retry. "Syncing…" must not stay.
+      this.log(`loading the conversation failed: ${String(err)}`);
+      this.loadError = unreachable(err) ?
+        (this.history ? "The office computer is unreachable, and this conversation isn't saved on this device." : "The office computer is unreachable.") :
+        err instanceof Error ? err.message : String(err);
+      this.sync = this.history && unreachable(err) ? "offline" : "";
+      this.changed();
+      return;
+    }
+    if (this.history && !(err instanceof UnauthorizedError)) {
       this.log(`sync failed: ${String(err)}`);
       this.sync = unreachable(err) ? "offline" : "failed";
-      if (!this.tasks.length) this.error = "The office computer is unreachable, and this conversation isn't saved on this device.";
       this.changed();
       return;
     }

@@ -1,6 +1,6 @@
 # Conversation history: local copy and paging (desktop)
 
-Status: implemented on `feat/conversation-history`
+Status: implemented
 
 Mob Desktop keeps a local copy of each conversation and loads older turns as you scroll. The
 protocol is in [mobd](https://github.com/xrdavies/mobd/blob/main/docs/conversation-history.md):
@@ -49,6 +49,8 @@ conversations, and saves nothing.
 
 | State | Shown |
 |---|---|
+| Opening a chat with no saved copy | Placeholder lines in place of the conversation |
+| That first load failed | **Couldn't load this conversation** with the reason and **Retry**; focusing the window retries too. With mobd unreachable, **Offline** next to the title |
 | Opening a saved chat, returning to the app, reconnecting | Spinner and **Syncing…** next to the title |
 | Up to date | Nothing |
 | mobd unreachable | **Offline · showing saved copy** |
@@ -70,7 +72,10 @@ render, and when older items are prepended the scroll moves by how far it shifte
 own scroll anchoring is off, so the two never add up). It does not scroll to the bottom or set the
 "New activity" state, which only follows the current turn. One page request at a time; the
 loading pill floats over the top so it does not move the content; an error leaves the cursor
-unchanged and offers Retry. Paging bounds the DOM to what was scrolled through.
+unchanged and offers Retry, and no page loads on its own until Retry. The row above the turns
+that shows that error keeps one height whether empty or not, so it never moves the turns below.
+Every open counts as a new visit (`revision`): answers for an earlier one, also A, then B, then A
+again, are dropped. Paging bounds the DOM to what was scrolled through.
 `content-visibility: auto` is not used: placeholder heights of items above the view would make the
 content jump while scrolling up.
 
@@ -97,7 +102,8 @@ Settings → Appearance → **Saved conversations** shows the space used and **C
 - `src/lib/history.test.mjs`: merging, first and older pages without gaps or duplicates, a relaunch
   that shows the saved copy before mobd answers and then fetches only changes, an old changed turn
   not appended, `reset`, offline reading and recovery, removal after a `404`, the full-snapshot
-  fallback.
+  fallback, a failed or unreachable first load without a saved copy (error, then loading while
+  retrying, never a stuck "Syncing…"), and an older page from an earlier visit dropped.
 - `src-tauri/src/history.rs` tests: paging saved turns, the `rev` rule and cursors, eviction order
   and trimming, removal and pruning, a corrupt or foreign file rebuilt, modes 0700/0600.
 - Checked by hand in WebKit against a mobd from the `feat/conversation-history` branch with a

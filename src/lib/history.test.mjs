@@ -47,7 +47,7 @@ test("the memory copy pages saved turns and keeps cursors and newer turns", asyn
 function office(count) {
   const session = { id: "s", title: "s", status: "succeeded", updatedAt: "2026-10-01T00:00:00Z" };
   const tasks = Array.from({ length: count }, (_, i) => task(i + 1, i + 1));
-  const state = { rev: count, offline: false, gone: false, reset: false, gate: null };
+  const state = { rev: count, offline: false, gone: false, reset: false, gate: null, fail: false };
   const answer = (list, extra) => ({
     session: { ...session, turns: tasks.length, rev: state.rev, messages: list.map(message) },
     tasks: list.map((t) => ({ ...t })), activities: [], questions: [], rev: state.rev, ...extra,
@@ -60,6 +60,8 @@ function office(count) {
     const u = new URL(url);
     assert.match(u.pathname, /\/sessions\/s\/history$/, `unexpected ${url}`);
     if (state.gate) await state.gate;
+    if (state.historyOffline) throw new TypeError("fetch failed");
+    if (state.fail) return { statusCode: 500, body: { error: "history unavailable" } };
     const limit = Number(u.searchParams.get("limit"));
     if (u.searchParams.has("since")) {
       const since = Number(u.searchParams.get("since"));
@@ -212,4 +214,63 @@ test("a mobd without sessionHistory keeps the full-snapshot request and saves no
   assert.equal(chat.hasOlder, false);
   assert.deepEqual(await store.list("server-1"), []);
   assert.deepEqual(replies(chat), ["reply 1 r1"]);
+});
+
+// mob-ios#6 on the desktop: a first load that fails with nothing saved says why, with Retry, and
+// "Syncing…" does not stay.
+test("a failed first load without a saved copy shows its error and retries", async (t) => {
+  const mobd = office(25);
+  mobd.state.fail = true;
+  const { chat } = harness(t, mobd);
+  await chat.setMachine("office", "http://office", "s", "server-1");
+  assert.equal(chat.tasks.length, 0);
+  assert.equal(chat.loading, false);
+  assert.match(chat.loadError, /history unavailable/);
+  assert.equal(chat.sync, "", "Syncing… must not stay after the failure");
+  assert.equal(chat.error, "");
+  mobd.state.fail = false;
+  let release;
+  mobd.state.gate = new Promise((r) => { release = r; });
+  chat.retry();
+  await settle();
+  assert.deepEqual([chat.loading, chat.loadError], [true, ""], "the retry shows as loading");
+  mobd.state.gate = null;
+  release();
+  await settle();
+  assert.deepEqual([chat.loading, chat.tasks.length, chat.loadError], [false, 20, ""]);
+});
+
+test("unreachable with nothing saved says so, and returning to the window retries", async (t) => {
+  const mobd = office(25);
+  mobd.state.historyOffline = true;
+  const { chat } = harness(t, mobd);
+  await chat.setMachine("office", "http://office", "s", "server-1");
+  assert.equal(chat.sessionId, "s");
+  assert.equal(chat.tasks.length, 0);
+  assert.match(chat.loadError, /unreachable/);
+  assert.equal(chat.sync, "offline");
+  mobd.state.historyOffline = false;
+  chat.resync();
+  await settle();
+  assert.deepEqual([chat.loadError, chat.tasks.length, chat.sync], ["", 20, ""]);
+});
+
+// A slow older page asked for on an earlier visit (A, then B, then A again) changes nothing.
+test("an older page from an earlier visit is dropped", async (t) => {
+  const mobd = office(45);
+  const { chat } = harness(t, mobd);
+  await chat.setMachine("office", "http://office", "s", "server-1");
+  await settle();
+  let release;
+  mobd.state.gate = new Promise((r) => { release = r; });
+  const stale = chat.loadOlder();
+  chat.newChat();
+  mobd.state.gate = null;
+  await chat.open("s");
+  await settle();
+  assert.equal(chat.tasks[0].seq, 26);
+  release();
+  await stale;
+  await settle();
+  assert.deepEqual([chat.tasks[0].seq, chat.olderLoading, chat.olderError], [26, false, ""]);
 });

@@ -272,10 +272,22 @@ export function Timeline({ machineName }: { machineName: string }) {
                 ))}
               </div>
             )}
-            {chat.olderError && (
-              <p className="flex items-center justify-center gap-1 text-xs text-muted-foreground">
-                {chat.olderError} ·
-                <Button variant="link" size="sm" className="h-auto px-0 text-xs" onClick={() => void chat.loadOlder()}>Retry</Button>
+            {chat.loadError && items.length === 0 && (
+              <div className="grid justify-items-center gap-2 pt-16 text-center">
+                <p className="text-sm font-medium">Couldn't load this conversation</p>
+                <p className="max-w-md text-[13px] text-muted-foreground">{chat.loadError}</p>
+                <Button size="sm" className="mt-1" onClick={() => chat.retry()}>Retry</Button>
+              </div>
+            )}
+            {/* One height whether it is empty or shows the error, so it never moves the turns below. */}
+            {(chat.hasOlder || chat.olderError) && items.length > 0 && (
+              <p className="flex h-5 items-center justify-center gap-1 text-xs text-muted-foreground">
+                {chat.olderError && (
+                  <>
+                    {chat.olderError} ·
+                    <Button variant="link" size="sm" className="h-auto px-0 text-xs" onClick={() => void chat.loadOlder()}>Retry</Button>
+                  </>
+                )}
               </p>
             )}
             {items.map((item) => (
