@@ -2,6 +2,10 @@
 
 Status: implemented
 
+The [agent collaboration draft](agent-collaboration.md) keeps pending requests
+visible independently of loaded chat turns. The shared architecture is proposed;
+its synchronization and cache details will be defined during implementation.
+
 Mob Desktop keeps a local copy of each conversation and loads older turns as you scroll. The
 protocol is in [mobd](https://github.com/xrdavies/mobd/blob/main/docs/conversation-history.md):
 `GET /sessions/{id}/history` for pages and bounded changes, `seq` for turn order, `sessionHistory`
