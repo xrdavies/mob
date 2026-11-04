@@ -1,12 +1,13 @@
 import { ArrowDown, Check, CircleHelp, Copy, RotateCcw } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { artifactUrl } from "@/api/client";
-import type { ChatMessage, Task } from "@/api/types";
+import type { ChatMessage, CollabRequest, Task } from "@/api/types";
 import { AuthImage } from "@/components/AuthImage";
 import { Spinner, StatusIcon } from "@/components/StatusIcon";
 import { Button } from "@/components/ui/button";
 import { useChat } from "@/hooks/useChat";
 import { queueReasonText } from "@/lib/desktops";
+import { parseDelivery, requestEnded, statusLabel } from "@/lib/collab";
 import { buildTimeline, type TimelineItem } from "@/lib/timeline";
 import { cn, compactNumber, duration } from "@/lib/utils";
 import { useComposer } from "@/store/composer";
@@ -20,6 +21,25 @@ const EXAMPLES = [
   { title: "Summarize mail", prompt: "Open Mail and summarize the five most recent unread messages." },
   { title: "Write a note", prompt: "Open TextEdit, create a new document and type today's date." },
 ];
+
+function PeerMessage({ message }: { message: ChatMessage }) {
+  const parts = parseDelivery(message.content);
+  if (parts.length === 0) return <UserMessage message={message} task={undefined} base="" />;
+  return (
+    <div className="space-y-2">
+      {parts.map((part, i) => (
+        <div key={i} className="flex flex-col items-end gap-1.5">
+          <div className="max-w-[80%] space-y-1">
+            <div className="text-right text-[11px] text-muted-foreground">From {part.from}</div>
+            <div className="whitespace-pre-wrap rounded-2xl rounded-br-md bg-accent-soft px-3.5 py-2 text-[14px] leading-relaxed">
+              {part.body}
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 function UserMessage({ message, task, base }: { message: ChatMessage; task?: Task; base: string }) {
   return (
@@ -107,7 +127,9 @@ function Item({ item, base, last }: { item: TimelineItem; base: string; last: bo
   const chat = useChat();
   switch (item.type) {
     case "user":
-      return <UserMessage message={item.message} task={item.task} base={base} />;
+      return item.task?.origin?.kind === "collab" 
+        ? <PeerMessage message={item.message} />
+        : <UserMessage message={item.message} task={item.task} base={base} />;
     case "assistant":
       return <AssistantMessage message={item.message} />;
     case "question":
@@ -192,6 +214,32 @@ function EmptyState({ machineName }: { machineName: string }) {
   );
 }
 
+function PendingStrip({ requests }: { requests: CollabRequest[] }) {
+  const [dismissed, setDismissed] = useState<Set<string>>(new Set());
+  const open = requests.filter((r) => !requestEnded(r.status) || !dismissed.has(r.id));
+  if (open.length === 0) return null;
+  return (
+    <div className="border-b bg-accent-soft/30 px-4 py-2">
+      {open.map((r) => (
+        <button
+          key={r.id}
+          onClick={() => {
+            // TODO: show request detail dialog
+            if (requestEnded(r.status)) setDismissed((d) => new Set([...d, r.id]));
+          }}
+          className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-xs hover:bg-accent-soft"
+        >
+          <span className="flex-1 truncate">
+            <span className="font-medium">{r.fromName === r.from ? r.from : `${r.fromName} (${r.from})`}</span>
+            {" · "}
+            <span className="text-muted-foreground">{statusLabel[r.status]}</span>
+          </span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export function Timeline({ machineName }: { machineName: string }) {
   const chat = useChat();
   const base = chat.baseUrl;
@@ -261,6 +309,7 @@ export function Timeline({ machineName }: { machineName: string }) {
           loadOlder();
         }}
       >
+        {chat.collab && <PendingStrip requests={chat.requests} />}
         {empty ? (
           <EmptyState machineName={machineName} />
         ) : (
