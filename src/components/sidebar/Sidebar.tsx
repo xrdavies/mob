@@ -1,10 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
 import {
-  Archive, ArchiveRestore, ChevronRight, Circle, CircleDot, Monitor, MonitorX, MoreHorizontal, Pencil, Pin, PinOff, Plus, Settings, Share2, SquarePen, Star, Trash2,
+  Archive, ArchiveRestore, AtSign, ChevronRight, Circle, CircleDot, Monitor, MonitorX, MoreHorizontal, Pencil, Pin, PinOff, Plus, Settings, Share2, SquarePen, Star, Trash2,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { closeDesktop, fetchArchived, seedDesktop, sessionDesktops, supports } from "@/api/client";
+import { suggestHandle } from "@/lib/collab";
 import type { Session } from "@/api/types";
 import { StatusIcon, WaitingIcon } from "@/components/StatusIcon";
 import { Button } from "@/components/ui/button";
@@ -25,13 +26,14 @@ import { addressLabel, currentAddress } from "@/lib/machines";
 import { baseUrl, needsPairing, useApp, type Machine } from "@/store/app";
 import { useComposer } from "@/store/composer";
 
-type Action = "rename" | "pin" | "archive" | "unarchive" | "delete" | "closeDesktop" | "seed";
+type Action = "rename" | "pin" | "archive" | "unarchive" | "delete" | "closeDesktop" | "seed" | "handle";
 
-function SessionActions({ session, admin, desktops, hasDesktop, onAction, Item, Separator }: {
+function SessionActions({ session, admin, desktops, hasDesktop, collab, onAction, Item, Separator }: {
   session: Session;
   admin: boolean;
   desktops: boolean;
   hasDesktop: boolean;
+  collab: boolean;
   onAction: (a: Action) => void;
   Item: typeof DropdownMenuItem | typeof ContextMenuItem;
   Separator: typeof DropdownMenuSeparator | typeof ContextMenuSeparator;
@@ -41,6 +43,7 @@ function SessionActions({ session, admin, desktops, hasDesktop, onAction, Item, 
   return (
     <>
       <Item onSelect={() => onAction("rename")}><Pencil /> Rename</Item>
+      {collab && <Item onSelect={() => onAction("handle")}><AtSign /> {session.handle ? "Change handle…" : "Set handle…"}</Item>}
       {!session.archived && (
         <Item onSelect={() => onAction("pin")}>{session.pinned ? <><PinOff /> Unpin</> : <><Pin /> Pin</>}</Item>
       )}
@@ -139,13 +142,13 @@ function SessionRow({ session, active, admin, desktops, hasDesktop, position, on
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" onClick={(e) => e.stopPropagation()}>
-              <SessionActions session={session} admin={admin} desktops={desktops} hasDesktop={!!hasDesktop} onAction={act} Item={DropdownMenuItem} Separator={DropdownMenuSeparator} />
+              <SessionActions session={session} admin={admin} desktops={desktops} hasDesktop={!!hasDesktop} collab={chat.collab} onAction={act} Item={DropdownMenuItem} Separator={DropdownMenuSeparator} />
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
       </ContextMenuTrigger>
       <ContextMenuContent>
-        <SessionActions session={session} admin={admin} desktops={desktops} hasDesktop={!!hasDesktop} onAction={act} Item={ContextMenuItem} Separator={ContextMenuSeparator} />
+        <SessionActions session={session} admin={admin} desktops={desktops} hasDesktop={!!hasDesktop} collab={chat.collab} onAction={act} Item={ContextMenuItem} Separator={ContextMenuSeparator} />
       </ContextMenuContent>
     </ContextMenu>
   );
@@ -183,7 +186,7 @@ function ArchivedGroup({ base, admin, desktops, desktopsData, onAction }: {
   );
 }
 
-function MachineGroup({ machine, active }: { machine: Machine; active: boolean }) {
+function MachineGroup({ machine, active, onHandleAction }: { machine: Machine; active: boolean; onHandleAction: (s: Session) => void }) {
   const chatState = useChat();
   const { selectMachine, selectRoute, collapsed, set, openSettings } = useApp();
   const unpaired = needsPairing(machine);
@@ -203,6 +206,10 @@ function MachineGroup({ machine, active }: { machine: Machine; active: boolean }
   const dot = unpaired ? "bg-warning" : isError ? "bg-danger" : !health ? "bg-muted-foreground/30" : checksBad ? "bg-warning" : "bg-success";
 
   const onAction = async (s: Session, a: Action) => {
+    if (a === "handle") {
+      onHandleAction(s);
+      return;
+    }
     if (a === "pin") void chat.patchSession(s.id, { pinned: !s.pinned });
     else if (a === "archive") setConfirm({ session: s, action: "archive" });
     else if (a === "unarchive") void chat.patchSession(s.id, { archived: false });
@@ -331,6 +338,9 @@ function MachineGroup({ machine, active }: { machine: Machine; active: boolean }
 }
 
 export function Sidebar() {
+  const [handleDialog, setHandleDialog] = useState<{ session: Session; suggested: string } | null>(null);
+  const [handleInput, setHandleInput] = useState("");
+  const [handleError, setHandleError] = useState("");
   const { machines, activeMachineId, openSettings } = useApp();
   const chatState = useChat();
   const focus = useComposer((s) => s.focus);
@@ -352,8 +362,96 @@ export function Sidebar() {
         </Button>
       </div>
       <nav className="min-h-0 flex-1 overflow-y-auto px-2 pb-2" aria-label="Sessions">
-        {machines.map((m) => <MachineGroup key={m.id} machine={m} active={m.id === activeMachineId} />)}
+        {machines.map((m) => <MachineGroup key={m.id} machine={m} active={m.id === activeMachineId} onHandleAction={(s) => {
+          const suggested = s.handle || suggestHandle(s.title, chatState.sessions.map((x) => x.handle).filter(Boolean) as string[]);
+          setHandleInput(s.handle || suggested);
+          setHandleError("");
+          setHandleDialog({ session: s, suggested });
+        }} />)}
       </nav>
+      <Dialog open={!!handleDialog} onOpenChange={(open) => !open && setHandleDialog(null)}>
+        <DialogContent>
+          <DialogTitle>{handleDialog?.session.handle ? "Change" : "Set"} handle</DialogTitle>
+          <DialogDescription>
+            Handles let you @-mention this agent in other conversations. They're unique per mobd, like usernames.
+          </DialogDescription>
+          <div className="space-y-3">
+            <div>
+              <input
+                type="text"
+                value={handleInput}
+                onChange={(e) => {
+                  setHandleInput(e.target.value);
+                  setHandleError("");
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    void (async () => {
+                      if (!handleDialog) return;
+                      const h = handleInput.trim();
+                      if (h === handleDialog.session.handle) {
+                        setHandleDialog(null);
+                        return;
+                      }
+                      const err = await chatState.setHandle(handleDialog.session.id, h, false);
+                      if (err) setHandleError(err);
+                      else {
+                        toast.success(h ? `Handle set to @${h}` : "Handle cleared");
+                        setHandleDialog(null);
+                      }
+                    })();
+                  }
+                }}
+                placeholder="api"
+                className="w-full rounded-lg border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-accent"
+                autoFocus
+              />
+              {handleError && <p className="mt-1 text-xs text-danger">{handleError}</p>}
+            </div>
+            <div className="flex justify-between">
+              <Button variant="ghost" size="sm" onClick={() => setHandleDialog(null)}>Cancel</Button>
+              <div className="flex gap-2">
+                {handleDialog?.session.handle && (
+                  <Button variant="ghost" size="sm" onClick={async () => {
+                    if (!handleDialog) return;
+                    const err = await chatState.setHandle(handleDialog.session.id, "", false);
+                    if (err) setHandleError(err);
+                    else {
+                      toast.success("Handle cleared");
+                      setHandleDialog(null);
+                    }
+                  }}>Clear</Button>
+                )}
+                <Button size="sm" onClick={async () => {
+                  if (!handleDialog) return;
+                  const h = handleInput.trim();
+                  if (h === handleDialog.session.handle) {
+                    setHandleDialog(null);
+                    return;
+                  }
+                  const taken = chatState.sessions.find((s) => s.handle === h && s.id !== handleDialog.session.id);
+                  if (taken) {
+                    const err = await chatState.setHandle(handleDialog.session.id, h, true);
+                    if (err) setHandleError(err);
+                    else {
+                      toast.success(`Moved @${h} from "${taken.title}" to this conversation`);
+                      setHandleDialog(null);
+                    }
+                  } else {
+                    const err = await chatState.setHandle(handleDialog.session.id, h, false);
+                    if (err) setHandleError(err);
+                    else {
+                      toast.success(h ? `Handle set to @${h}` : "Handle cleared");
+                      setHandleDialog(null);
+                    }
+                  }
+                }}>Save</Button>
+              </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
       <div className="flex gap-1 border-t px-2 py-2">
         <Button variant="ghost" size="sm" className="flex-1 justify-start" onClick={() => openSettings("machines", null)}>
           <Settings className="size-3.5" /> Settings
