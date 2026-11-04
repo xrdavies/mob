@@ -9,7 +9,8 @@ collaboration saved by mobd.
 
 ## User flow
 
-1. In agent A's chat, select agent B by `@name` or short ID and tell A what to
+1. In agent A's chat, select agent B by its handle (`@api`) or by title in the
+   `@` picker, and tell A what to
    collaborate on. Each existing conversation is an agent; Codex, Claude Code
    and Pi are the framework choices used to run it.
 2. A sends a focused request. Show who contacted whom, what was requested and
@@ -19,6 +20,11 @@ collaboration saved by mobd.
 4. Let the user open B's conversation, inspect the exchange and stop or cancel
    the relevant work. Keep the current draft and reading position when navigating.
 
+The handle names the agent; the title describes its work. Show the handle as
+a badge next to the title, and lead with it in collaboration views. Archived
+agents appear greyed out in the picker and cannot be selected; their row offers
+Unarchive or moving the handle to this conversation (mobd's
+[handles](https://github.com/xrdavies/mobd/blob/main/docs/agent-collaboration-design.md#handles)).
 Mention selection identifies a specific session. Duplicate names need explicit
 selection, and renaming an agent preserves that identity. Selecting a mention
 alone does not send work to another agent.
