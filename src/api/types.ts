@@ -38,6 +38,15 @@ export interface Task {
   rev?: number;
   /** The turn's 1-based position in its conversation; it never changes. */
   seq?: number;
+  /** Who started the turn (mobd with "agentCollaboration"); absent = the user. */
+  origin?: TaskOrigin;
+}
+
+export interface TaskOrigin {
+  /** "collab": a turn mobd started to deliver messages from other agents. */
+  kind: "user" | "collab";
+  exchangeId?: string;
+  requests?: string[];
 }
 
 export interface ChatMessage {
@@ -67,6 +76,25 @@ export interface Session {
   messages?: ChatMessage[];
   /** The number of turns (mobd with "sessionHistory"). */
   turns?: number;
+  /** The agent's handle (@api), unique per mobd (mobd with "agentCollaboration"). */
+  handle?: string;
+}
+
+/** A request between agents (mobd docs/agent-collaboration-design.md). */
+export interface CollabRequest {
+  id: string;
+  exchangeId: string;
+  from: string;
+  to: string;
+  fromName: string;
+  toName: string;
+  text: string;
+  status: import("@/lib/collab").RequestStatus;
+  result?: string;
+  thread?: { from: string; kind: "clarification" | "answer"; text: string; at: string }[];
+  createdAt: string;
+  updatedAt: string;
+  expiresAt: string;
 }
 
 export type ActivityKind = "tool" | "command" | "reasoning" | "plan" | "file_change" | "web_search" | "notice";
@@ -242,6 +270,8 @@ export interface TurnOptions {
   model?: string;
   effort?: string;
   attachments?: string[];
+  /** Session IDs the user @-mentioned: they start an agent collaboration. */
+  mentions?: string[];
 }
 
 export type DesktopState = "starting" | "running" | "asleep" | "waking" | "closing" | "closed" | "failed";

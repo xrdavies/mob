@@ -1,7 +1,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
 import { fetchDesktops, fetchHealth, fetchQueue, sessionDesktops, supports } from "@/api/client";
-import type { Desktops, Queue, Session, Task } from "@/api/types";
+import type { CollabRequest, Desktops, Queue, Session, Task } from "@/api/types";
 import { chat } from "@/hooks/useChat";
 import { streamAuth } from "@/lib/auth";
 import { applyDesktop, applyLevel, parseDesktop, parseDisk, parseMemory } from "@/lib/desktops";
@@ -61,6 +61,7 @@ export function useMachineEvents(machine: Machine | null | undefined) {
       chat.applyQueue(q);
     });
     on<Task>("task", (t) => chat.applyTask(t));
+    on<CollabRequest>("collab", (r) => chat.applyRequest(r));
     // Machine settings changed on some device: the models and defaults offered come from /health.
     on<unknown>("settings", (v) => {
       qc.setQueryData(["settings", base], v);
