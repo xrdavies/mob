@@ -1,7 +1,9 @@
 import { ArrowUp, Bot, Brain, ChevronDown, Cpu, Paperclip, Square, X } from "lucide-react";
+import { MentionPicker } from "./MentionPicker";
+import { mentionAt, mentionCandidates, mentionToken, resolveMentions } from "@/lib/collab";
 import { useEffect, useRef, useState, type ClipboardEvent, type DragEvent } from "react";
 import { runnerFor, supports, uploadImage } from "@/api/client";
-import type { Health } from "@/api/types";
+import type { Health, Session } from "@/api/types";
 import { Spinner } from "@/components/StatusIcon";
 import { Button } from "@/components/ui/button";
 import {
@@ -69,6 +71,9 @@ function Picker({ icon: Icon, label, value, options, onChange, placeholder, onEd
 export function Composer({ machineId, machineName, health }: { machineId: string; machineName: string; health?: Health }) {
   const chat = useChat();
   const { text, setText, focusTick } = useComposer();
+  const [caret, setCaret] = useState(0);
+  const [pickerActive, setPickerActive] = useState(0);
+  const [mentionError, setMentionError] = useState("");
   const machinePrefs = useApp((s) => s.turnPrefs[machineId]) ?? {};
   const setTurnPrefs = useApp((s) => s.setTurnPrefs);
   const clearTurnPrefs = useApp((s) => s.clearTurnPrefs);
@@ -124,6 +129,19 @@ export function Composer({ machineId, machineName, health }: { machineId: string
     }
   }
 
+  /** Replaces the @ word at the caret with the agent's token (handle, else short ID). */
+  function insertMention(agent: Session) {
+    const m = mentionAt(text, caret);
+    if (!m || agent.archived) return;
+    const token = mentionToken(agent);
+    const next = text.slice(0, m.start) + token + " " + text.slice(caret);
+    setText(next);
+    setPickerActive(0);
+    const at = m.start + token.length + 1;
+    setCaret(at);
+    requestAnimationFrame(() => input.current?.setSelectionRange(at, at));
+  }
+
   async function send() {
     const prompt = text.trim();
     if (canSteer && prompt) {
@@ -131,12 +149,19 @@ export function Composer({ machineId, machineName, health }: { machineId: string
       return;
     }
     if (!prompt || !chat.canSend || uploading) return;
+    const mentioned = chat.collab ? resolveMentions(prompt, chat.sessions, chat.sessionId) : { ids: [], archived: [] };
+    if (mentioned.archived.length) {
+      setMentionError(`${mentioned.archived.join(", ")} ${mentioned.archived.length > 1 ? "are" : "is"} archived. Unarchive it to ask it, or move its handle.`);
+      return;
+    }
+    setMentionError("");
     const newChat = !chat.sessionId;
     const ok = await chat.submit(prompt, {
       // Only a new chat names them (they become its settings); later turns use the conversation's.
       ...(canOptions && newChat ? { model: shown.model || undefined, effort: efforts.includes(shown.effort) ? shown.effort : undefined } : {}),
       attachments: ready.map((a) => a.id!),
       runner: newChat ? runner?.name : undefined,
+      mentions: mentioned.ids,
     });
     if (ok && newChat) {
       // The conversation has its settings now; the next new chat starts from the defaults.
@@ -195,11 +220,26 @@ export function Composer({ machineId, machineName, health }: { machineId: string
             ))}
           </div>
         )}
+        {chat.collab && mentionAt(text, caret) && (
+          <MentionPicker
+            sessions={chat.sessions}
+            query={mentionAt(text, caret)?.query ?? ""}
+            self={chat.sessionId}
+            active={pickerActive}
+            onPick={(agent) => insertMention(agent)}
+          />
+        )}
+        {mentionError && <p role="alert" className="px-3.5 pt-2 text-xs text-danger">{mentionError}</p>}
         <textarea
           ref={input}
           rows={1}
           value={text}
-          onChange={(e) => setText(e.target.value)}
+          onChange={(e) => {
+            setText(e.target.value);
+            setCaret(e.target.selectionStart ?? 0);
+            setPickerActive(0);
+          }}
+          onSelect={(e) => setCaret((e.target as HTMLTextAreaElement).selectionStart ?? 0)}
           onPaste={(e: ClipboardEvent) => {
             const files = [...e.clipboardData.files];
             if (files.length) {
@@ -210,6 +250,27 @@ export function Composer({ machineId, machineName, health }: { machineId: string
           onCompositionStart={ime.start}
           onCompositionEnd={ime.end}
           onKeyDown={(e) => {
+            const m = mentionAt(text, caret);
+            const candidates = m && chat.collab ? mentionCandidates(chat.sessions, m.query, chat.sessionId) : [];
+            if (candidates.length > 0) {
+              if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+                e.preventDefault();
+                const step = e.key === "ArrowDown" ? 1 : -1;
+                setPickerActive((n) => (n + step + candidates.length) % candidates.length);
+                return;
+              }
+              if (e.key === "Enter" || e.key === "Tab") {
+                e.preventDefault();
+                const picked = candidates[pickerActive];
+                if (picked && !picked.archived) insertMention(picked);
+                return;
+              }
+              if (e.key === "Escape") {
+                e.preventDefault();
+                setPickerActive(0);
+                return;
+              }
+            }
             // Enter that commits Pinyin or another input method must not send.
             if (e.key === "Enter" && !e.shiftKey && !ime.owns(e.nativeEvent)) {
               e.preventDefault();
