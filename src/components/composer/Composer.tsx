@@ -1,6 +1,6 @@
 import { ArrowUp, Bot, Brain, ChevronDown, Cpu, Paperclip, Square, X } from "lucide-react";
 import { MentionPicker } from "./MentionPicker";
-import { mentionAt, mentionCandidates, mentionToken, resolveMentions } from "@/lib/collab";
+import { mentionAt, mentionCandidates, mentionSegments, mentionToken, resolveMentions, suggestHandle } from "@/lib/collab";
 import { useEffect, useRef, useState, type ClipboardEvent, type DragEvent } from "react";
 import { runnerFor, supports, uploadImage } from "@/api/client";
 import type { Health, Session } from "@/api/types";
@@ -75,6 +75,9 @@ export function Composer({ machineId, machineName, health }: { machineId: string
   const [pickerActive, setPickerActive] = useState(0);
   /** Where the @ word starts that Escape closed the picker for; typing elsewhere opens it again. */
   const [pickerClosed, setPickerClosed] = useState<number | null>(null);
+  /** A picked conversation without a handle, with the one suggested for it. */
+  const [naming, setNaming] = useState<{ session: Session; handle: string } | null>(null);
+  const highlight = useRef<HTMLDivElement>(null);
   const [mentionError, setMentionError] = useState("");
   const machinePrefs = useApp((s) => s.turnPrefs[machineId]) ?? {};
   const setTurnPrefs = useApp((s) => s.setTurnPrefs);
@@ -131,11 +134,31 @@ export function Composer({ machineId, machineName, health }: { machineId: string
     }
   }
 
-  /** Replaces the @ word at the caret with the agent's token (handle, else short ID). */
-  function insertMention(agent: Session) {
+  /** Picks an agent from the picker; one without a handle is offered a name first. */
+  function pickMention(agent: Session) {
+    if (agent.archived) return;
+    if (agent.handle) return insertMention(mentionToken(agent));
+    const taken = chat.sessions.flatMap((s) => (s.handle ? [s.handle] : []));
+    setNaming({ session: agent, handle: suggestHandle(agent.title, taken) });
+  }
+
+  /** Gives the picked conversation its suggested handle, then mentions it by that handle. */
+  async function nameAndMention() {
+    if (!naming?.handle) return;
+    const { session, handle } = naming;
+    const err = await chat.setHandle(session.id, handle, false);
+    if (err) {
+      setMentionError(err);
+      return;
+    }
+    insertMention(`@${handle}`);
+  }
+
+  /** Replaces the @ word at the caret with `token` (an agent's handle or short ID). */
+  function insertMention(token: string) {
+    setNaming(null);
     const m = mentionAt(text, caret);
-    if (!m || agent.archived) return;
-    const token = mentionToken(agent);
+    if (!m) return;
     const next = text.slice(0, m.start) + token + " " + text.slice(caret);
     setText(next);
     setPickerActive(0);
@@ -228,64 +251,94 @@ export function Composer({ machineId, machineName, health }: { machineId: string
             query={mentionAt(text, caret)?.query ?? ""}
             self={chat.sessionId}
             active={pickerActive}
-            onPick={(agent) => insertMention(agent)}
+            naming={naming}
+            onPick={pickMention}
+            onName={() => void nameAndMention()}
+            onPlain={() => naming && insertMention(mentionToken(naming.session))}
           />
         )}
         {mentionError && <p role="alert" className="px-3.5 pt-2 text-xs text-danger">{mentionError}</p>}
-        <textarea
-          ref={input}
-          rows={1}
-          value={text}
-          onChange={(e) => {
-            setText(e.target.value);
-            setCaret(e.target.selectionStart ?? 0);
-            setPickerActive(0);
-            // Removing the @ word Escape closed the picker for lets a new one open it.
-            if (!mentionAt(e.target.value, e.target.selectionStart ?? 0)) setPickerClosed(null);
-          }}
-          onSelect={(e) => setCaret((e.target as HTMLTextAreaElement).selectionStart ?? 0)}
-          onPaste={(e: ClipboardEvent) => {
-            const files = [...e.clipboardData.files];
-            if (files.length) {
-              e.preventDefault();
-              addFiles(files);
-            }
-          }}
-          onCompositionStart={ime.start}
-          onCompositionEnd={ime.end}
-          onKeyDown={(e) => {
-            const m = mentionAt(text, caret);
-            const candidates = m && chat.collab && m.start !== pickerClosed ? mentionCandidates(chat.sessions, m.query, chat.sessionId) : [];
-            if (m && candidates.length > 0) {
-              if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+        <div className="relative">
+          {chat.collab && (
+            <div
+              ref={highlight}
+              aria-hidden
+              className="pointer-events-none absolute inset-0 overflow-hidden whitespace-pre-wrap px-3.5 pb-1 pt-3 text-[14px] leading-relaxed text-transparent [overflow-wrap:break-word]"
+            >
+              {mentionSegments(text, chat.sessions, chat.sessionId).map((seg, i) =>
+                seg.session ? <span key={i} className="rounded-[3px] bg-accent/20 shadow-[0_0_0_1.5px_color-mix(in_srgb,var(--accent)_20%,transparent)]">{seg.text}</span> : seg.text,
+              )}
+              {"\u200b"}
+            </div>
+          )}
+          <textarea
+            ref={input}
+            onScroll={(e) => {
+              if (highlight.current) highlight.current.scrollTop = e.currentTarget.scrollTop;
+            }}
+            rows={1}
+            value={text}
+            onChange={(e) => {
+              setText(e.target.value);
+              setCaret(e.target.selectionStart ?? 0);
+              setPickerActive(0);
+              setNaming(null);
+              // Removing the @ word Escape closed the picker for lets a new one open it.
+              if (!mentionAt(e.target.value, e.target.selectionStart ?? 0)) setPickerClosed(null);
+            }}
+            onSelect={(e) => setCaret((e.target as HTMLTextAreaElement).selectionStart ?? 0)}
+            onPaste={(e: ClipboardEvent) => {
+              const files = [...e.clipboardData.files];
+              if (files.length) {
                 e.preventDefault();
-                const step = e.key === "ArrowDown" ? 1 : -1;
-                setPickerActive((n) => (n + step + candidates.length) % candidates.length);
-                return;
+                addFiles(files);
               }
-              if (e.key === "Enter" || e.key === "Tab") {
+            }}
+            onCompositionStart={ime.start}
+            onCompositionEnd={ime.end}
+            onKeyDown={(e) => {
+              if (naming) {
+                if (e.key === "Enter" || e.key === "Tab" || e.key === "Escape") {
+                  e.preventDefault();
+                  if (e.key === "Enter") void nameAndMention();
+                  else if (e.key === "Tab") insertMention(mentionToken(naming.session));
+                  else setNaming(null);
+                  return;
+                }
+              }
+              const m = mentionAt(text, caret);
+              const candidates = m && chat.collab && m.start !== pickerClosed ? mentionCandidates(chat.sessions, m.query, chat.sessionId) : [];
+              if (m && candidates.length > 0) {
+                if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+                  e.preventDefault();
+                  const step = e.key === "ArrowDown" ? 1 : -1;
+                  setPickerActive((n) => (n + step + candidates.length) % candidates.length);
+                  return;
+                }
+                if (e.key === "Enter" || e.key === "Tab") {
+                  e.preventDefault();
+                  const picked = candidates[pickerActive];
+                  if (picked && !picked.archived) pickMention(picked);
+                  return;
+                }
+                if (e.key === "Escape") {
+                  e.preventDefault();
+                  setPickerActive(0);
+                  setPickerClosed(m.start);
+                  return;
+                }
+              }
+              // Enter that commits Pinyin or another input method must not send.
+              if (e.key === "Enter" && !e.shiftKey && !ime.owns(e.nativeEvent)) {
                 e.preventDefault();
-                const picked = candidates[pickerActive];
-                if (picked && !picked.archived) insertMention(picked);
-                return;
+                void send();
               }
-              if (e.key === "Escape") {
-                e.preventDefault();
-                setPickerActive(0);
-                setPickerClosed(m.start);
-                return;
-              }
-            }
-            // Enter that commits Pinyin or another input method must not send.
-            if (e.key === "Enter" && !e.shiftKey && !ime.owns(e.nativeEvent)) {
-              e.preventDefault();
-              void send();
-            }
-          }}
-          placeholder={canSteer ? "Add to what the agent is doing… (↵ sends to the running turn)" : busy ? "The agent is working… you can draft the next message" : `Ask Mob to do something on ${machineName}…`}
-          aria-label="Task prompt"
-          className="block max-h-60 min-h-[44px] w-full resize-none bg-transparent px-3.5 pb-1 pt-3 text-[14px] leading-relaxed outline-none placeholder:text-muted-foreground/70"
-        />
+            }}
+            placeholder={canSteer ? "Add to what the agent is doing… (↵ sends to the running turn)" : busy ? "The agent is working… you can draft the next message" : `Ask Mob to do something on ${machineName}…`}
+            aria-label="Task prompt"
+            className="relative block max-h-60 min-h-[44px] w-full resize-none bg-transparent px-3.5 pb-1 pt-3 text-[14px] leading-relaxed outline-none placeholder:text-muted-foreground/70"
+          />
+        </div>
         <div className="flex items-center gap-0.5 px-2 pb-2">
           <input
             ref={file}
