@@ -1,12 +1,15 @@
 import { ArrowDown, Check, CircleHelp, Copy, RotateCcw } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { artifactUrl } from "@/api/client";
-import type { ChatMessage, Task } from "@/api/types";
+import type { ChatMessage, CollabRequest, Task } from "@/api/types";
 import { AuthImage } from "@/components/AuthImage";
 import { Spinner, StatusIcon } from "@/components/StatusIcon";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { useChat } from "@/hooks/useChat";
 import { queueReasonText } from "@/lib/desktops";
+import { collabStepTitle, needsUser, requestEnded, statusLabel } from "@/lib/collab";
+import { MentionText, PeerMessage } from "./Collab";
 import { buildTimeline, type TimelineItem } from "@/lib/timeline";
 import { cn, compactNumber, duration } from "@/lib/utils";
 import { useComposer } from "@/store/composer";
@@ -32,7 +35,7 @@ function UserMessage({ message, task, base }: { message: ChatMessage; task?: Tas
         </div>
       )}
       <div className="max-w-[80%] whitespace-pre-wrap rounded-2xl rounded-br-md bg-muted px-3.5 py-2 text-[14px] leading-relaxed">
-        {message.content}
+        <MentionText text={message.content} />
       </div>
     </div>
   );
@@ -107,7 +110,9 @@ function Item({ item, base, last }: { item: TimelineItem; base: string; last: bo
   const chat = useChat();
   switch (item.type) {
     case "user":
-      return <UserMessage message={item.message} task={item.task} base={base} />;
+      return item.task?.origin?.kind === "collab"
+        ? <PeerMessage task={item.task} message={item.message} />
+        : <UserMessage message={item.message} task={item.task} base={base} />;
     case "assistant":
       return <AssistantMessage message={item.message} />;
     case "question":
@@ -149,7 +154,7 @@ function Item({ item, base, last }: { item: TimelineItem; base: string; last: bo
           <Spinner />
           <span className="shimmer">{chat.cancelling ? "Stopping…" : "Working"}</span>
           {!chat.cancelling && <Elapsed from={item.task.startedAt} />}
-          {item.latest && <span className="min-w-0 truncate">· {item.latest.title}</span>}
+          {item.latest && <span className="min-w-0 truncate">· {collabStepTitle(item.latest, chat.sessions) ?? item.latest.title}</span>}
         </div>
       );
     case "footer":
@@ -188,6 +193,81 @@ function EmptyState({ machineName }: { machineName: string }) {
           </button>
         ))}
       </div>
+    </div>
+  );
+}
+
+/** The other agent in a request, as seen from conversation `self`, with the direction. */
+function requestPeer(r: CollabRequest, self: string | null): string {
+  return r.from === self ? `To ${r.toName}` : `From ${r.fromName}`;
+}
+
+function PendingStrip({ requests, self }: { requests: CollabRequest[]; self: string | null }) {
+  const chat = useChat();
+  const [dismissed, setDismissed] = useState<Set<string>>(new Set());
+  const [openId, setOpenId] = useState<string | null>(null);
+  const shown = requests.filter((r) => !requestEnded(r.status) || !dismissed.has(r.id));
+  // The dialog follows live updates to the request it shows.
+  const detail = requests.find((r) => r.id === openId);
+  if (shown.length === 0 && !detail) return null;
+  return (
+    <div className="border-b bg-accent-soft/30 px-4 py-2">
+      {shown.map((r) => (
+        <div key={r.id} className="flex items-center gap-1 rounded-lg hover:bg-accent-soft">
+          <button
+            type="button"
+            onClick={() => setOpenId(r.id)}
+            className="flex min-w-0 flex-1 items-center gap-2 px-2 py-1.5 text-left text-xs"
+          >
+            <span className="flex-1 truncate">
+              <span className="font-medium">{requestPeer(r, self)}</span>
+              {" · "}
+              <span className={cn("text-muted-foreground", needsUser(r.status) && "text-danger")}>{statusLabel[r.status]}</span>
+              {" · "}
+              <span className="text-muted-foreground">{r.text}</span>
+            </span>
+          </button>
+          {requestEnded(r.status) && (
+            <Button variant="ghost" size="sm" onClick={() => setDismissed((d) => new Set([...d, r.id]))}>Dismiss</Button>
+          )}
+        </div>
+      ))}
+      <Dialog open={!!detail} onOpenChange={(open) => !open && setOpenId(null)}>
+        <DialogContent className="w-[520px] p-5">
+          <DialogTitle>{detail ? `${detail.fromName} → ${detail.toName}` : ""}</DialogTitle>
+          <DialogDescription className={cn("mt-1", detail && needsUser(detail.status) && "text-danger")}>
+            {detail ? statusLabel[detail.status] : ""}
+          </DialogDescription>
+          {detail && (
+            <div className="mt-3 max-h-[60vh] space-y-3 overflow-y-auto text-[13px]">
+              <section>
+                <p className="mb-1 text-xs font-medium text-muted-foreground">Request</p>
+                <p className="whitespace-pre-wrap">{detail.text}</p>
+              </section>
+              {detail.thread?.map((n, i) => (
+                <section key={i}>
+                  <p className="mb-1 text-xs font-medium text-muted-foreground">
+                    {n.kind === "clarification" ? `Question from ${detail.toName}` : `Answer from ${detail.fromName}`}
+                  </p>
+                  <p className="whitespace-pre-wrap">{n.text}</p>
+                </section>
+              ))}
+              {detail.result && (
+                <section>
+                  <p className="mb-1 text-xs font-medium text-muted-foreground">Result</p>
+                  <Markdown text={detail.result} />
+                </section>
+              )}
+            </div>
+          )}
+          <div className="mt-4 flex justify-end gap-2">
+            {detail && !requestEnded(detail.status) && (
+              <Button variant="danger" size="sm" onClick={() => void chat.cancelRequest(detail.id)}>Cancel request</Button>
+            )}
+            <Button variant="secondary" size="sm" onClick={() => setOpenId(null)}>Close</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -261,6 +341,7 @@ export function Timeline({ machineName }: { machineName: string }) {
           loadOlder();
         }}
       >
+        {chat.collab && <PendingStrip requests={chat.requests} self={chat.sessionId} />}
         {empty ? (
           <EmptyState machineName={machineName} />
         ) : (

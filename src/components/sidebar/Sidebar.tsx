@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import {
-  Archive, ArchiveRestore, ChevronRight, Circle, CircleDot, Monitor, MonitorX, MoreHorizontal, Pencil, Pin, PinOff, Plus, Settings, Share2, SquarePen, Star, Trash2,
+  Archive, ArchiveRestore, AtSign, ChevronRight, Circle, CircleDot, Monitor, MonitorX, MoreHorizontal, Pencil, Pin, PinOff, Plus, Settings, Share2, SquarePen, Star, Trash2,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -20,18 +20,20 @@ import { useDesktops, useHealth, useQueue } from "@/hooks/useMachine";
 import { desktopMark, desktopOf, seedErrorText } from "@/lib/desktops";
 import { imeGuard } from "@/lib/ime";
 import { cn, shortAgo } from "@/lib/utils";
+import { HandleDialog } from "./HandleDialog";
 import { fallbackAddress, RouteChip, RouteContextItems, useReachable } from "@/components/MachineRoute";
 import { addressLabel, currentAddress } from "@/lib/machines";
 import { baseUrl, needsPairing, useApp, type Machine } from "@/store/app";
 import { useComposer } from "@/store/composer";
 
-type Action = "rename" | "pin" | "archive" | "unarchive" | "delete" | "closeDesktop" | "seed";
+type Action = "rename" | "pin" | "archive" | "unarchive" | "delete" | "closeDesktop" | "seed" | "handle";
 
-function SessionActions({ session, admin, desktops, hasDesktop, onAction, Item, Separator }: {
+function SessionActions({ session, admin, desktops, hasDesktop, collab, onAction, Item, Separator }: {
   session: Session;
   admin: boolean;
   desktops: boolean;
   hasDesktop: boolean;
+  collab: boolean;
   onAction: (a: Action) => void;
   Item: typeof DropdownMenuItem | typeof ContextMenuItem;
   Separator: typeof DropdownMenuSeparator | typeof ContextMenuSeparator;
@@ -41,6 +43,7 @@ function SessionActions({ session, admin, desktops, hasDesktop, onAction, Item, 
   return (
     <>
       <Item onSelect={() => onAction("rename")}><Pencil /> Rename</Item>
+      {collab && <Item onSelect={() => onAction("handle")}><AtSign /> {session.handle ? "Change handle…" : "Set handle…"}</Item>}
       {!session.archived && (
         <Item onSelect={() => onAction("pin")}>{session.pinned ? <><PinOff /> Unpin</> : <><Pin /> Pin</>}</Item>
       )}
@@ -124,6 +127,7 @@ function SessionRow({ session, active, admin, desktops, hasDesktop, position, on
           {desktops && DesktopIcon && <DesktopIcon className={cn("size-2.5 shrink-0", hasDesktop === "asleep" ? "text-muted-foreground" : "fill-success text-success")} />}
           {session.pinned && <Star className="size-3 shrink-0 fill-warning text-warning" />}
           <span className="min-w-0 flex-1 truncate">{session.title}</span>
+          {session.handle && <span className="shrink-0 rounded bg-accent-soft px-1 font-mono text-[11px] font-normal text-accent">@{session.handle}</span>}
           <span className="flex w-7 shrink-0 justify-end group-hover:hidden group-focus-within:hidden">
             {session.waiting ? <WaitingIcon /> : status ? <StatusIcon status={status} position={position} /> : <span className="text-[11px] text-muted-foreground">{shortAgo(session.updatedAt)}</span>}
           </span>
@@ -139,13 +143,13 @@ function SessionRow({ session, active, admin, desktops, hasDesktop, position, on
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" onClick={(e) => e.stopPropagation()}>
-              <SessionActions session={session} admin={admin} desktops={desktops} hasDesktop={!!hasDesktop} onAction={act} Item={DropdownMenuItem} Separator={DropdownMenuSeparator} />
+              <SessionActions session={session} admin={admin} desktops={desktops} hasDesktop={!!hasDesktop} collab={chat.collab} onAction={act} Item={DropdownMenuItem} Separator={DropdownMenuSeparator} />
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
       </ContextMenuTrigger>
       <ContextMenuContent>
-        <SessionActions session={session} admin={admin} desktops={desktops} hasDesktop={!!hasDesktop} onAction={act} Item={ContextMenuItem} Separator={ContextMenuSeparator} />
+        <SessionActions session={session} admin={admin} desktops={desktops} hasDesktop={!!hasDesktop} collab={chat.collab} onAction={act} Item={ContextMenuItem} Separator={ContextMenuSeparator} />
       </ContextMenuContent>
     </ContextMenu>
   );
@@ -183,7 +187,7 @@ function ArchivedGroup({ base, admin, desktops, desktopsData, onAction }: {
   );
 }
 
-function MachineGroup({ machine, active }: { machine: Machine; active: boolean }) {
+function MachineGroup({ machine, active, onHandleAction }: { machine: Machine; active: boolean; onHandleAction: (s: Session) => void }) {
   const chatState = useChat();
   const { selectMachine, selectRoute, collapsed, set, openSettings } = useApp();
   const unpaired = needsPairing(machine);
@@ -203,6 +207,10 @@ function MachineGroup({ machine, active }: { machine: Machine; active: boolean }
   const dot = unpaired ? "bg-warning" : isError ? "bg-danger" : !health ? "bg-muted-foreground/30" : checksBad ? "bg-warning" : "bg-success";
 
   const onAction = async (s: Session, a: Action) => {
+    if (a === "handle") {
+      onHandleAction(s);
+      return;
+    }
     if (a === "pin") void chat.patchSession(s.id, { pinned: !s.pinned });
     else if (a === "archive") setConfirm({ session: s, action: "archive" });
     else if (a === "unarchive") void chat.patchSession(s.id, { archived: false });
@@ -331,6 +339,7 @@ function MachineGroup({ machine, active }: { machine: Machine; active: boolean }
 }
 
 export function Sidebar() {
+  const [handleDialog, setHandleDialog] = useState<Session | null>(null);
   const { machines, activeMachineId, openSettings } = useApp();
   const chatState = useChat();
   const focus = useComposer((s) => s.focus);
@@ -352,8 +361,9 @@ export function Sidebar() {
         </Button>
       </div>
       <nav className="min-h-0 flex-1 overflow-y-auto px-2 pb-2" aria-label="Sessions">
-        {machines.map((m) => <MachineGroup key={m.id} machine={m} active={m.id === activeMachineId} />)}
+        {machines.map((m) => <MachineGroup key={m.id} machine={m} active={m.id === activeMachineId} onHandleAction={setHandleDialog} />)}
       </nav>
+      <HandleDialog session={handleDialog} onClose={() => setHandleDialog(null)} />
       <div className="flex gap-1 border-t px-2 py-2">
         <Button variant="ghost" size="sm" className="flex-1 justify-start" onClick={() => openSettings("machines", null)}>
           <Settings className="size-3.5" /> Settings

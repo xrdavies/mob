@@ -50,3 +50,34 @@ platform. First delivery covers existing agents on one mobd.
 Validate the end-to-end A/B exchange, clear attribution, user control and
 reconnection first. UI component details, API models and cache changes follow
 after the shared implementation contract is defined.
+
+## Status: Desktop (feat/agent-collab-core)
+
+Built against mobd's `feat/agent-collab-core` API and tested in the browser preview with the office
+mobd running that branch (Codex and Claude Code, 2026-11-05).
+
+- **Handles:** the badge shows next to the title in the sidebar; the row menu opens a dialog that
+  sets, changes or removes a handle, suggesting one from the title and checking the rules as you
+  type. A handle another conversation holds is moved only after the dialog says whose it is.
+- **@ picker:** typing `@` opens a list above the composer: "Agents" (with a handle) first, then
+  other "Conversations", without the open one. Arrow keys, Enter or Tab pick; Escape closes it for
+  that word. Picking a conversation without a handle offers to name it (Enter) or mention it by
+  short ID (Tab). Archived agents are greyed out. Mentions are resolved on send; an archived one
+  stops the send. Mentions are highlighted while you type and shown as chips in sent messages;
+  a chip opens that conversation.
+- **Pending requests:** a strip above the timeline lists requests to and from the conversation
+  ("To @heron", "From …") with status and text. Clicking one opens its request, clarifications and
+  result, with Cancel while it is unfinished. Ended requests can be dismissed.
+- **Who says what:** only your messages are on the right. This conversation's agent is "Mob" on the
+  left; another agent is on the left too, with its name, framework, a colour of its own and what it
+  did ("asks", "replied"), without mobd's instructions to the recipient. Collaboration steps read
+  "Asked @heron: …", "Replied: …".
+- **Live updates:** the global `collab` event updates the strip and an open request.
+
+Verified with a real exchange: Codex asked a Claude Code conversation by `@handle` from the
+composer, the strip went from waiting to handling to answered, and the result reached the asker.
+Cancel from the dialog marked a request being handled as cancelled at once; the recipient's turn
+keeps running (cancel does not stop it) and its `complete_request` fails afterwards.
+
+Not verified: a clarification shown in the dialog, moving a handle that another conversation
+holds, and the packaged app's WebView (tests used Chrome).

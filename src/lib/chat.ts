@@ -1,5 +1,5 @@
 import type {
-  Activity, ChatMessage, HistoryAnswer, Queue, Question, Session, SessionDetail, Task, TaskEvent, TaskStatus, TurnOptions,
+  Activity, ChatMessage, CollabRequest, HistoryAnswer, Queue, Question, Session, SessionDetail, Task, TaskEvent, TaskStatus, TurnOptions,
 } from "../api/types.ts";
 import { ApiError, authFetch, streamAuth, UnauthorizedError } from "./auth.ts";
 import {
@@ -92,6 +92,10 @@ export class Chat {
   olderError = "";
   /** The open conversation could not be loaded and nothing is shown; `retry()` tries again. */
   loadError = "";
+  /** mobd offers agent collaboration ("agentCollaboration"): handles, @ mentions, requests. */
+  collab = false;
+  /** Requests from or to the open conversation (GET /collab), unfinished first. */
+  requests: CollabRequest[] = [];
 
   private url = "";
   /** Office mobd serves paged history ("sessionHistory"); only then is the local copy used. */
@@ -197,6 +201,7 @@ export class Chat {
   private async probe(): Promise<boolean | null> {
     try {
       const health = await this.request<{ features?: string[] }>(`${this.url}/health`);
+      this.collab = !!health.features?.includes("agentCollaboration");
       return !!health.features?.includes("sessionHistory");
     } catch {
       return null;
@@ -227,6 +232,7 @@ export class Chat {
     this.remember();
     this.revision++;
     this.stop();
+    this.requests = [];
     this.cursor = 0;
     this.sessionId = null;
     this.session = null;
@@ -291,6 +297,7 @@ export class Chat {
       this.loading = false;
       this.changed();
       this.subscribe();
+      void this.loadRequests();
     } catch (err) {
       if (revision === this.revision) {
         this.loading = false;
@@ -398,6 +405,7 @@ export class Chat {
           prompt, sessionId: sessionId ?? undefined, runner: sessionId ? undefined : options.runner || undefined,
           model: options.model || undefined,
           effort: options.effort || undefined, attachments: options.attachments?.length ? options.attachments : undefined,
+          mentions: options.mentions?.length ? options.mentions : undefined,
         }),
       });
       if (!t.sessionId) throw new Error("Update office mobd to support chat sessions.");
@@ -549,6 +557,57 @@ export class Chat {
       });
       if (summary.archived) this.removeSession(id);
       else this.applySession(summary);
+    } catch (err) {
+      this.fail(err);
+    }
+  }
+
+  /** Sets (or with "" clears) a conversation's handle; `take` moves it from another conversation. */
+  async setHandle(id: string, handle: string, take = false): Promise<string> {
+    try {
+      const summary = await this.request<Session>(`${this.url}/sessions/${id}`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(take ? { handle, takeHandle: true } : { handle }),
+      });
+      this.applySession(summary);
+      // The conversation that lost it shows without a handle.
+      if (take) this.sessions = this.sessions.map((s) => (s.id !== id && s.handle === handle ? { ...s, handle: undefined } : s));
+      this.changed();
+      return "";
+    } catch (err) {
+      return err instanceof Error ? err.message : String(err);
+    }
+  }
+
+  /** Loads the open conversation's collaboration requests. */
+  async loadRequests(): Promise<void> {
+    const id = this.sessionId;
+    if (!this.collab || !id) {
+      this.requests = [];
+      return;
+    }
+    try {
+      const data = await this.request<{ requests: CollabRequest[] }>(`${this.url}/collab?session=${encodeURIComponent(id)}`);
+      if (id !== this.sessionId) return;
+      this.requests = data.requests ?? [];
+      this.changed();
+    } catch (err) {
+      this.log(`loading collaboration requests failed: ${String(err)}`);
+    }
+  }
+
+  /** A request changed (global "collab" event). */
+  applyRequest(r: CollabRequest): void {
+    const id = this.sessionId;
+    if (!id || (r.from !== id && r.to !== id)) return;
+    const i = this.requests.findIndex((x) => x.id === r.id);
+    this.requests = i < 0 ? [r, ...this.requests] : this.requests.map((x) => (x.id === r.id ? r : x));
+    this.changed();
+  }
+
+  async cancelRequest(requestId: string): Promise<void> {
+    try {
+      this.applyRequest(await this.request<CollabRequest>(`${this.url}/collab/requests/${requestId}/cancel`, { method: "POST" }));
     } catch (err) {
       this.fail(err);
     }

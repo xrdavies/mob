@@ -8,6 +8,8 @@ import type { Activity } from "@/api/types";
 import { AuthImage } from "@/components/AuthImage";
 import { Spinner } from "@/components/StatusIcon";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { useChat } from "@/hooks/useChat";
+import { collabStepTitle } from "@/lib/collab";
 import { cn, duration } from "@/lib/utils";
 
 export function activityIcon(a: Activity): LucideIcon {
@@ -123,6 +125,7 @@ function Details({ a, base }: { a: Activity; base: string }) {
 }
 
 export function ActivityRow({ a, base, defaultOpen = false }: { a: Activity; base: string; defaultOpen?: boolean }) {
+  const sessions = useChat().sessions;
   const [open, setOpen] = useState(defaultOpen);
   const Icon = activityIcon(a);
   const notice = a.kind === "notice";
@@ -144,7 +147,7 @@ export function ActivityRow({ a, base, defaultOpen = false }: { a: Activity; bas
         </span>
         <Icon className="size-3.5 shrink-0" />
         <span className={cn("min-w-0 flex-1 truncate", !notice && "text-foreground/90", a.kind === "reasoning" && "italic text-muted-foreground")}>
-          {a.title}
+          {collabStepTitle(a, sessions) ?? a.title}
         </span>
         <span className="shrink-0 text-[11px] text-muted-foreground/80">{metaText}</span>
         <ChevronRight className={cn("size-3.5 shrink-0 text-muted-foreground/60 transition-transform", open && "rotate-90")} />
@@ -155,6 +158,7 @@ export function ActivityRow({ a, base, defaultOpen = false }: { a: Activity; bas
 }
 
 export function ActivityGroup({ activities, base }: { activities: Activity[]; base: string }) {
+  const sessions = useChat().sessions;
   const [open, setOpen] = useState(false);
   const latest = activities[activities.length - 1];
   const failed = activities.filter((a) => a.status === "failed" && a.kind !== "notice").length;
@@ -173,7 +177,7 @@ export function ActivityGroup({ activities, base }: { activities: Activity[]; ba
         {!open && (
           <span className="ml-1 min-w-0 flex-1 truncate text-right text-[12px]">
             {latest.status === "running" ? "Now: " : "Last: "}
-            {latest.title}
+            {collabStepTitle(latest, sessions) ?? latest.title}
           </span>
         )}
       </button>
