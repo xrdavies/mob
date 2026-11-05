@@ -548,6 +548,9 @@ class StreamController {
           if (attempt !== this.attempt || transport || player) return;
           console.info(race ? `live: WebSocket alongside WebRTC after ${ms()} ms (needed here last time)` : `live: no WebRTC after ${ms()} ms, using the WebSocket`);
           if (!race) this.dropWebRTC();
+          // The WebSocket gets its own time: on a slow path it can open late in the first window.
+          clearTimeout(timer);
+          timer = setTimeout(() => fail("The live view did not start. Is the office computer reachable from here?"), CONNECT_TIMEOUT);
           const ws: WsPlayer = new WsPlayer(url, { canvas, video }, {
             control: (data) => transport === "WebSocket" && control(data),
             frame: (width, height) => {
@@ -572,7 +575,26 @@ class StreamController {
         };
         // MSE plays into the <video> WebRTC would use, so it never races beside WebRTC.
         const race = !!target.preferWebSocket && decoder === "webcodecs";
-        graceTimer = setTimeout(() => startWs?.(race), race ? REMEMBERED_GRACE : WEBRTC_GRACE);
+        let waited = false;
+        // Still connecting at the end of the head start (a relayed path, seconds per round trip, mobd
+        // docs/live-view-cellular-investigation.md): dropping WebRTC lost sessions that connected a moment
+        // later. Race the WebSocket beside it, or with MSE, which cannot race, wait one more head start.
+        const onGrace = () => {
+          if (!race && pc?.connectionState === "connecting") {
+            if (decoder === "webcodecs") {
+              console.info(`live: WebRTC still connecting after ${ms()} ms, racing the WebSocket`);
+              return startWs?.(true);
+            }
+            if (!waited) {
+              waited = true;
+              console.info(`live: WebRTC still connecting after ${ms()} ms, waiting longer`);
+              graceTimer = setTimeout(onGrace, WEBRTC_GRACE);
+              return;
+            }
+          }
+          startWs?.(race);
+        };
+        graceTimer = setTimeout(onGrace, race ? REMEMBERED_GRACE : WEBRTC_GRACE);
       }
       if (!answer.answer) {
         if (startWs) startWs(false);
