@@ -1,4 +1,4 @@
-import { Folder, Monitor, Moon, PanelLeft, RefreshCw, Search, Settings, Sun } from "lucide-react";
+import { Folder, Monitor, Moon, PanelLeft, RefreshCw, Search, Settings, Sun, Usb } from "lucide-react";
 import type { Health, Queue } from "@/api/types";
 import { ChecksList } from "@/components/settings/SettingsDialog";
 import { Button } from "@/components/ui/button";
@@ -7,7 +7,10 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Tooltip } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { isMac, MOD, shortcut } from "@/lib/platform";
+import { supports } from "@/api/client";
+import { active } from "@/lib/usb";
 import { baseUrl, needsPairing, useApp, type Machine } from "@/store/app";
+import { useUsb } from "@/store/usb";
 
 export const isTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 
@@ -104,6 +107,9 @@ export function TitleBar(props: {
           </Button>
         </Tooltip>
       )}
+      {props.machine && !needsPairing(props.machine) && isTauri && supports(props.health, "usbRedirection") && (
+        <UsbButton machine={props.machine} onClick={() => set({ usbOpen: true })} />
+      )}
       {props.machine && (
         <Tooltip content={`${previewOpen ? "Hide" : "Show"} the office desktop (${shortcut("B", true)})`}>
           <Button variant="ghost" size="sm" aria-pressed={previewOpen} onClick={() => togglePreview()}
@@ -116,5 +122,18 @@ export function TitleBar(props: {
         <Button variant="ghost" size="icon-sm" aria-label="Settings" onClick={() => openSettings()}><Settings /></Button>
       </Tooltip>
     </header>
+  );
+}
+
+/** USB devices, with how many of this machine's are shared now. */
+function UsbButton({ machine, onClick }: { machine: Machine; onClick: () => void }) {
+  const shared = useUsb((s) => Object.values(s.shares).filter((x) => x.machineId === machine.id && active(x.state)).length);
+  return (
+    <Tooltip content={shared ? `${shared} USB device${shared > 1 ? "s" : ""} shared with this computer` : "Share a USB device with the office computer"}>
+      <Button variant="ghost" size="sm" onClick={onClick} className={cn("h-7 gap-1.5 px-2.5", shared > 0 && "text-foreground")}>
+        <Usb className="size-3.5" /> USB
+        {shared > 0 && <span className="rounded-full bg-success/15 px-1.5 text-[10px] font-semibold tabular-nums text-success">{shared}</span>}
+      </Button>
+    </Tooltip>
   );
 }

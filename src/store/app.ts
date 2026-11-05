@@ -51,6 +51,8 @@ interface Ephemeral {
   settingsFocus: string | null;
   paletteOpen: boolean;
   filesOpen: boolean;
+  /** USB devices: share one with the office computer (docs/usb-redirection.md in mobd). */
+  usbOpen: boolean;
   fullscreen: boolean;
   /** Set to ask the desktop panel to connect the live view (from the command palette). */
   liveConnect: number;
@@ -130,6 +132,7 @@ export const useApp = create<AppState>()(
       settingsFocus: null,
       paletteOpen: false,
       filesOpen: false,
+      usbOpen: false,
       fullscreen: false,
       liveConnect: 0,
       set: (patch) => set(patch),

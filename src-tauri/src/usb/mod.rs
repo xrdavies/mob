@@ -42,7 +42,7 @@ pub struct LocalDevice {
 
 struct Share {
     bus_id: String,
-    machine_id: String,
+    address_id: String,
     stop: Option<oneshot::Sender<()>>,
 }
 
@@ -54,7 +54,7 @@ pub struct Shares(Mutex<HashMap<String, Share>>);
 pub struct ShareInfo {
     pub session_id: String,
     pub bus_id: String,
-    pub machine_id: String,
+    pub address_id: String,
 }
 
 /// What the UI hears about a share: mobd's session state, or why the share ended here.
@@ -157,7 +157,7 @@ pub fn usb_shares(shares: State<'_, Shares>) -> Vec<ShareInfo> {
         .map(|(id, s)| ShareInfo {
             session_id: id.clone(),
             bus_id: s.bus_id.clone(),
-            machine_id: s.machine_id.clone(),
+            address_id: s.address_id.clone(),
         })
         .collect()
 }
@@ -168,7 +168,7 @@ pub fn usb_shares(shares: State<'_, Shares>) -> Vec<ShareInfo> {
 pub async fn usb_share(
     app: AppHandle,
     shares: State<'_, Shares>,
-    machine_id: String,
+    address_id: String,
     base_url: String,
     session_id: String,
     bus_id: String,
@@ -179,7 +179,7 @@ pub async fn usb_share(
             return Err("This device is already shared.".into());
         }
     }
-    let token = crate::secrets::get(&format!("{machine_id}.token"))?
+    let token = crate::secrets::get(&format!("{address_id}.token"))?
         .ok_or("This machine needs pairing again.")?;
     let backend: Arc<dyn Backend> = if bus_id == EMULATED {
         Arc::new(Loopback::new(EMULATED))
@@ -202,7 +202,7 @@ pub async fn usb_share(
         session_id.clone(),
         Share {
             bus_id: bus_id.clone(),
-            machine_id,
+            address_id,
             stop: Some(stop_tx),
         },
     );
