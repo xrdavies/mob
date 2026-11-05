@@ -8,7 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { useChat } from "@/hooks/useChat";
 import { queueReasonText } from "@/lib/desktops";
-import { needsUser, parseDelivery, requestEnded, statusLabel } from "@/lib/collab";
+import { collabStepTitle, needsUser, requestEnded, statusLabel } from "@/lib/collab";
+import { MentionText, PeerMessage } from "./Collab";
 import { buildTimeline, type TimelineItem } from "@/lib/timeline";
 import { cn, compactNumber, duration } from "@/lib/utils";
 import { useComposer } from "@/store/composer";
@@ -23,25 +24,6 @@ const EXAMPLES = [
   { title: "Write a note", prompt: "Open TextEdit, create a new document and type today's date." },
 ];
 
-function PeerMessage({ message }: { message: ChatMessage }) {
-  const parts = parseDelivery(message.content);
-  if (parts.length === 0) return <UserMessage message={message} task={undefined} base="" />;
-  return (
-    <div className="space-y-2">
-      {parts.map((part, i) => (
-        <div key={i} className="flex flex-col items-end gap-1.5">
-          <div className="max-w-[80%] space-y-1">
-            <div className="text-right text-[11px] text-muted-foreground">From {part.from}</div>
-            <div className="whitespace-pre-wrap rounded-2xl rounded-br-md bg-accent-soft px-3.5 py-2 text-[14px] leading-relaxed">
-              {part.body}
-            </div>
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
 function UserMessage({ message, task, base }: { message: ChatMessage; task?: Task; base: string }) {
   return (
     <div className="flex flex-col items-end gap-1.5">
@@ -53,7 +35,7 @@ function UserMessage({ message, task, base }: { message: ChatMessage; task?: Tas
         </div>
       )}
       <div className="max-w-[80%] whitespace-pre-wrap rounded-2xl rounded-br-md bg-muted px-3.5 py-2 text-[14px] leading-relaxed">
-        {message.content}
+        <MentionText text={message.content} />
       </div>
     </div>
   );
@@ -128,8 +110,8 @@ function Item({ item, base, last }: { item: TimelineItem; base: string; last: bo
   const chat = useChat();
   switch (item.type) {
     case "user":
-      return item.task?.origin?.kind === "collab" 
-        ? <PeerMessage message={item.message} />
+      return item.task?.origin?.kind === "collab"
+        ? <PeerMessage task={item.task} message={item.message} />
         : <UserMessage message={item.message} task={item.task} base={base} />;
     case "assistant":
       return <AssistantMessage message={item.message} />;
@@ -172,7 +154,7 @@ function Item({ item, base, last }: { item: TimelineItem; base: string; last: bo
           <Spinner />
           <span className="shimmer">{chat.cancelling ? "Stopping…" : "Working"}</span>
           {!chat.cancelling && <Elapsed from={item.task.startedAt} />}
-          {item.latest && <span className="min-w-0 truncate">· {item.latest.title}</span>}
+          {item.latest && <span className="min-w-0 truncate">· {collabStepTitle(item.latest, chat.sessions) ?? item.latest.title}</span>}
         </div>
       );
     case "footer":

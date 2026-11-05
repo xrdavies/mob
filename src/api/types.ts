@@ -47,6 +47,17 @@ export interface TaskOrigin {
   kind: "user" | "collab";
   exchangeId?: string;
   requests?: string[];
+  /** What a collab turn carried, in order (mobd's inbox items). */
+  deliveries?: Delivery[];
+}
+
+/** One message mobd delivered to an agent: a request, a clarification and its answer, a result or a notice. */
+export interface Delivery {
+  id: string;
+  to: string;
+  requestId: string;
+  kind: "request" | "clarification" | "answer" | "result" | "notice";
+  text: string;
 }
 
 export interface ChatMessage {

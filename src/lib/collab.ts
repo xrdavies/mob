@@ -1,7 +1,7 @@
 // Agent collaboration helpers (mobd docs/agent-collaboration-design.md). Pure, so they can be tested
 // without the UI: handles, @ mentions in the composer, and delivered peer messages.
 
-import type { Session } from "@/api/types";
+import type { Activity, CollabRequest, Delivery, Session } from "@/api/types";
 
 const HANDLE = /^[a-z][a-z0-9-]{1,31}$/;
 const HEX = /^[0-9a-f]+$/;
@@ -49,6 +49,13 @@ export function mentionAt(text: string, caret: number): { query: string; start: 
 }
 
 export const shortId = (id: string) => id.slice(0, 6);
+
+/** An agent's name where space is short: "@handle", else its title cut to `max` characters with a short ID. */
+export function agentShortLabel(s: Pick<Session, "id" | "title" | "handle">, max = 32): string {
+  if (s.handle) return `@${s.handle}`;
+  const t = [...s.title];
+  return `${t.length > max ? `${t.slice(0, max - 1).join("").trimEnd()}…` : s.title} (${shortId(s.id)})`;
+}
 
 /** How an agent is shown: "@handle" or its title with a short ID. */
 export function agentLabel(s: Pick<Session, "id" | "title" | "handle">): string {
@@ -124,3 +131,72 @@ export const statusLabel: Record<RequestStatus, string> = {
   failed: "failed", cancelled: "cancelled", expired: "expired · needs you", interrupted: "interrupted · needs you",
   over_budget: "out of turns · needs you",
 };
+
+/** Text split into plain runs and @mentions of other conversations (handle or short ID), for highlighting. */
+export function mentionSegments(text: string, sessions: Session[], self: string | null): { text: string; session?: Session }[] {
+  const out: { text: string; session?: Session }[] = [];
+  let last = 0;
+  for (const m of text.matchAll(/(^|\s)@([a-z0-9-]{2,32})(?=$|[\s.,;:!?)])/gi)) {
+    const word = m[2].toLowerCase();
+    let hit = sessions.find((s) => s.handle === word);
+    if (!hit && HEX.test(word) && word.length >= 6) {
+      const byId = sessions.filter((s) => s.id.startsWith(word));
+      if (byId.length === 1) hit = byId[0];
+    }
+    if (!hit || hit.id === self) continue;
+    const start = m.index + m[1].length;
+    if (start > last) out.push({ text: text.slice(last, start) });
+    out.push({ text: `@${m[2]}`, session: hit });
+    last = start + m[2].length + 1;
+  }
+  if (last < text.length) out.push({ text: text.slice(last) });
+  return out;
+}
+
+/** Who a delivery is from, by session ID: the requester for requests and answers, else the recipient. */
+export function deliverySender(d: Pick<Delivery, "kind">, r: Pick<CollabRequest, "from" | "to">): string | null {
+  if (d.kind === "notice") return null;
+  return d.kind === "request" || d.kind === "answer" ? r.from : r.to;
+}
+
+/** What a delivery says about itself, as a short label after the sender's name. */
+export function deliveryLabel(d: Pick<Delivery, "kind">, r?: Pick<CollabRequest, "status">): string {
+  switch (d.kind) {
+    case "request": return "asks";
+    case "clarification": return "needs clarification";
+    case "answer": return "answered your question";
+    case "result": return r?.status === "failed" ? "couldn't complete your request" : "replied";
+    default: return "";
+  }
+}
+
+/**
+ * The part of a delivered message an agent's sender wrote, without mobd's instructions to the
+ * recipient (for turns without structured deliveries).
+ */
+export function deliveryBody(body: string): string {
+  return body
+    .replace(/^Request: /, "")
+    .replace(/\n\nWhen done, call complete_request\([\s\S]*$/, "")
+    .replace(/\n\nAnswer with answer_clarification\([\s\S]*$/, "")
+    .replace(/^Result of your request "(?:[^"\\]|\\.)*" to .+? \((\w+)\):\n/, "")
+    .trim();
+}
+
+/** A readable title for a collaboration tool step, or null for other steps. */
+export function collabStepTitle(a: Pick<Activity, "server" | "tool" | "arguments">, sessions: Session[] = []): string | null {
+  if (a.server !== "mob-mcp") return null;
+  const arg = (k: string) => (typeof a.arguments?.[k] === "string" ? (a.arguments[k] as string) : "");
+  const to = arg("to").replace(/^@/, "").toLowerCase();
+  const byId = to.length >= 6 && HEX.test(to) ? sessions.filter((s) => s.id.startsWith(to)) : [];
+  const hit = sessions.find((s) => s.handle === to) ?? (byId.length === 1 ? byId[0] : undefined);
+  const who = hit ? agentShortLabel(hit) : !to ? "an agent" : HEX.test(to) ? to : `@${to}`;
+  switch (a.tool) {
+    case "send_request": return `Asked ${who}: ${arg("request")}`;
+    case "ask_clarification": return `Asked for clarification: ${arg("text")}`;
+    case "answer_clarification": return `Answered the clarification: ${arg("text")}`;
+    case "complete_request": return arg("outcome") === "failed" ? `Reported it couldn't: ${arg("result")}` : `Replied: ${arg("result")}`;
+    case "list_collaborators": return "Looked up the mentioned agents";
+    default: return null;
+  }
+}

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { handleProblem, normalizeHandleInput, validHandle, suggestHandle, mentionAt, mentionCandidates, mentionToken, resolveMentions, parseDelivery, agentLabel, requestEnded, needsUser } from "./collab.ts";
+import { agentShortLabel, collabStepTitle, deliveryBody, deliveryLabel, deliverySender, mentionSegments, handleProblem, normalizeHandleInput, validHandle, suggestHandle, mentionAt, mentionCandidates, mentionToken, resolveMentions, parseDelivery, agentLabel, requestEnded, needsUser } from "./collab.ts";
 
 test("validHandle accepts lowercase letters, digits, dash; starts with a letter; rejects all-hex and reserved", () => {
   assert.ok(validHandle("api"));
@@ -114,4 +114,37 @@ test("handleProblem explains each rule; normalizeHandleInput keeps what can be t
   assert.match(handleProblem("here"), /reserved/);
   for (const h of ["api", "a", "1api", "cafe", "here", "x".repeat(33)]) assert.equal(handleProblem(h) === "", validHandle(h), h);
   assert.equal(normalizeHandleInput("@Order Service_v2!"), "order-service-v2");
+});
+
+test("mentionSegments marks known handles and short IDs, not self or unknown words", () => {
+  const sessions = [{ id: "2ead98c31b", title: "B", handle: "heron" }, { id: "b9b040ee85", title: "off road" }, { id: "ea7b1322", title: "A", handle: "asker" }];
+  const segs = mentionSegments("ask @heron and @b9b040, not @nobody or @asker.", sessions, "ea7b1322");
+  assert.deepEqual(segs.map((x) => [x.text, x.session?.id ?? null]), [
+    ["ask ", null], ["@heron", "2ead98c31b"], [" and ", null], ["@b9b040", "b9b040ee85"], [", not @nobody or @asker.", null],
+  ]);
+  assert.equal(segs.map((x) => x.text).join(""), "ask @heron and @b9b040, not @nobody or @asker.");
+});
+
+test("deliveries: sender, label and body without mobd's instructions", () => {
+  const r = { from: "A", to: "B", status: "answered" };
+  assert.equal(deliverySender({ kind: "request" }, r), "A");
+  assert.equal(deliverySender({ kind: "result" }, r), "B");
+  assert.equal(deliverySender({ kind: "notice" }, r), null);
+  assert.equal(deliveryLabel({ kind: "result" }, { status: "failed" }), "couldn't complete your request");
+  assert.equal(deliveryBody('Request: Reply okay.\n\nWhen done, call complete_request("r-1", "answered" | "failed", <result>). If you need more.'), "Reply okay.");
+  assert.equal(deliveryBody('Result of your request "Reply \\"okay\\"" to @heron (answered):\nokay'), "okay");
+});
+
+test("collabStepTitle names collaboration steps", () => {
+  assert.equal(collabStepTitle({ server: "mob-mcp", tool: "send_request", arguments: { to: "heron", request: "Reply okay." } }), "Asked @heron: Reply okay.");
+  assert.equal(collabStepTitle({ server: "mob-mcp", tool: "send_request", arguments: { to: "2ead98", request: "x" } }), "Asked 2ead98: x");
+  assert.equal(collabStepTitle({ server: "mob-mcp", tool: "complete_request", arguments: { outcome: "answered", result: "BLUE" } }), "Replied: BLUE");
+  assert.equal(collabStepTitle({ server: "mob-mcp", tool: "screenshot" }), null);
+});
+
+test("agentShortLabel cuts long titles; steps name agents by handle", () => {
+  assert.equal(agentShortLabel({ id: "962ae4ff", title: "x".repeat(40) }), `${"x".repeat(31)}… (962ae4)`);
+  assert.equal(agentShortLabel({ id: "2ead98", title: "B", handle: "heron" }), "@heron");
+  const sessions = [{ id: "2ead98c31b", title: "B", handle: "heron" }];
+  assert.equal(collabStepTitle({ server: "mob-mcp", tool: "send_request", arguments: { to: "2ead98", request: "x" } }, sessions), "Asked @heron: x");
 });
