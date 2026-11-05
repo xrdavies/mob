@@ -127,6 +127,7 @@ function SessionRow({ session, active, admin, desktops, hasDesktop, position, on
           {desktops && DesktopIcon && <DesktopIcon className={cn("size-2.5 shrink-0", hasDesktop === "asleep" ? "text-muted-foreground" : "fill-success text-success")} />}
           {session.pinned && <Star className="size-3 shrink-0 fill-warning text-warning" />}
           <span className="min-w-0 flex-1 truncate">{session.title}</span>
+          {session.handle && <span className="shrink-0 rounded bg-accent-soft px-1 font-mono text-[11px] font-normal text-accent">@{session.handle}</span>}
           <span className="flex w-7 shrink-0 justify-end group-hover:hidden group-focus-within:hidden">
             {session.waiting ? <WaitingIcon /> : status ? <StatusIcon status={status} position={position} /> : <span className="text-[11px] text-muted-foreground">{shortAgo(session.updatedAt)}</span>}
           </span>
