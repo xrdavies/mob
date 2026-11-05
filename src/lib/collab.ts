@@ -12,6 +12,21 @@ export function validHandle(h: string): boolean {
   return HANDLE.test(h) && !HEX.test(h) && !RESERVED.has(h);
 }
 
+/** Why `h` cannot be a handle, in words for the user; "" when it can. */
+export function handleProblem(h: string): string {
+  if (h.length < 2) return "At least 2 characters.";
+  if (h.length > 32) return "At most 32 characters.";
+  if (!/^[a-z]/.test(h)) return "Start with a letter.";
+  if (!/^[a-z0-9-]+$/.test(h)) return "Use lowercase letters, digits and -.";
+  if (HEX.test(h)) return "Only 0–9 and a–f reads as a conversation ID; add another letter.";
+  if (RESERVED.has(h)) return `@${h} is reserved.`;
+  return "";
+}
+
+/** What the handle field keeps of typed text: lowercase, no leading @, spaces as -. */
+export const normalizeHandleInput = (s: string) =>
+  s.toLowerCase().replace(/^@+/, "").replace(/[\s_]+/g, "-").replace(/[^a-z0-9-]/g, "").slice(0, 32);
+
 /** A handle suggested from a conversation's title, or "" when none fits or all are taken. */
 export function suggestHandle(title: string, taken: Iterable<string>): string {
   const used = new Set(taken);

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { validHandle, suggestHandle, mentionAt, mentionCandidates, mentionToken, resolveMentions, parseDelivery, agentLabel, requestEnded, needsUser } from "./collab.ts";
+import { handleProblem, normalizeHandleInput, validHandle, suggestHandle, mentionAt, mentionCandidates, mentionToken, resolveMentions, parseDelivery, agentLabel, requestEnded, needsUser } from "./collab.ts";
 
 test("validHandle accepts lowercase letters, digits, dash; starts with a letter; rejects all-hex and reserved", () => {
   assert.ok(validHandle("api"));
@@ -104,4 +104,14 @@ test("requestEnded and needsUser", () => {
   assert.ok(needsUser("interrupted"));
   assert.ok(needsUser("over_budget"));
   assert.ok(!needsUser("answered"));
+});
+
+test("handleProblem explains each rule; normalizeHandleInput keeps what can be typed", () => {
+  assert.equal(handleProblem("order-api"), "");
+  assert.match(handleProblem("a"), /2 characters/);
+  assert.match(handleProblem("1api"), /letter/);
+  assert.match(handleProblem("cafe"), /conversation ID/);
+  assert.match(handleProblem("here"), /reserved/);
+  for (const h of ["api", "a", "1api", "cafe", "here", "x".repeat(33)]) assert.equal(handleProblem(h) === "", validHandle(h), h);
+  assert.equal(normalizeHandleInput("@Order Service_v2!"), "order-service-v2");
 });
