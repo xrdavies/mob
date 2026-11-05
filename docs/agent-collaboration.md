@@ -2,8 +2,8 @@
 
 Status: architecture COLLAB-1, 2026-11-02. Implemented on main; see the status section below.
 
-The shared [Mob vocabulary](https://github.com/xrdavies/mobd/blob/ddd731dfa64c0070345d423d9ff6add507d877cd/docs/agent-concepts.md) and
-[mobd architecture](https://github.com/xrdavies/mobd/blob/ddd731dfa64c0070345d423d9ff6add507d877cd/docs/agent-collaboration.md)
+The shared [Mob vocabulary](https://github.com/xrdavies/mobd/blob/main/docs/agent-concepts.md) and
+[mobd architecture](https://github.com/xrdavies/mobd/blob/main/docs/agent-collaboration.md)
 define the overall design. Desktop provides the interaction and displays the
 collaboration saved by mobd.
 
