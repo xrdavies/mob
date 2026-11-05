@@ -51,7 +51,7 @@ Validate the end-to-end A/B exchange, clear attribution, user control and
 reconnection first. UI component details, API models and cache changes follow
 after the shared implementation contract is defined.
 
-## Status: Desktop (feat/agent-collab-core)
+## Status: Desktop
 
 Built against mobd's `feat/agent-collab-core` API and tested in the browser preview with the office
 mobd running that branch (Codex and Claude Code, 2026-11-05).
