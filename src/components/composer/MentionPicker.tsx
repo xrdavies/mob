@@ -13,7 +13,9 @@ export function MentionPicker({ sessions, query, self, active, onPick }: {
 }) {
   const list = mentionCandidates(sessions, query, self);
   const row = useRef<HTMLButtonElement>(null);
-  useEffect(() => row.current?.scrollIntoView({ block: "nearest" }), [active]);
+  useEffect(() => {
+    row.current?.scrollIntoView({ block: "nearest" });
+  }, [active]);
   if (list.length === 0) return null;
   return (
     <div role="listbox" aria-label="Mention an agent" className="absolute bottom-full left-3 right-3 mb-2 max-h-64 overflow-y-auto rounded-xl border bg-popover p-1 shadow-panel">

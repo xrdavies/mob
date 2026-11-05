@@ -73,6 +73,8 @@ export function Composer({ machineId, machineName, health }: { machineId: string
   const { text, setText, focusTick } = useComposer();
   const [caret, setCaret] = useState(0);
   const [pickerActive, setPickerActive] = useState(0);
+  /** Where the @ word starts that Escape closed the picker for; typing elsewhere opens it again. */
+  const [pickerClosed, setPickerClosed] = useState<number | null>(null);
   const [mentionError, setMentionError] = useState("");
   const machinePrefs = useApp((s) => s.turnPrefs[machineId]) ?? {};
   const setTurnPrefs = useApp((s) => s.setTurnPrefs);
@@ -179,7 +181,7 @@ export function Composer({ machineId, machineName, health }: { machineId: string
     <div className="mx-auto w-full max-w-[760px] px-6 pb-4">
       <div
         className={cn(
-          "rounded-[14px] border bg-background shadow-panel transition-colors focus-within:border-accent/50",
+          "relative rounded-[14px] border bg-background shadow-panel transition-colors focus-within:border-accent/50",
           dragging && "border-accent bg-accent-soft",
         )}
         onDragOver={(e: DragEvent) => {
@@ -220,7 +222,7 @@ export function Composer({ machineId, machineName, health }: { machineId: string
             ))}
           </div>
         )}
-        {chat.collab && mentionAt(text, caret) && (
+        {chat.collab && mentionAt(text, caret) && mentionAt(text, caret)?.start !== pickerClosed && (
           <MentionPicker
             sessions={chat.sessions}
             query={mentionAt(text, caret)?.query ?? ""}
@@ -238,6 +240,8 @@ export function Composer({ machineId, machineName, health }: { machineId: string
             setText(e.target.value);
             setCaret(e.target.selectionStart ?? 0);
             setPickerActive(0);
+            // Removing the @ word Escape closed the picker for lets a new one open it.
+            if (!mentionAt(e.target.value, e.target.selectionStart ?? 0)) setPickerClosed(null);
           }}
           onSelect={(e) => setCaret((e.target as HTMLTextAreaElement).selectionStart ?? 0)}
           onPaste={(e: ClipboardEvent) => {
@@ -251,8 +255,8 @@ export function Composer({ machineId, machineName, health }: { machineId: string
           onCompositionEnd={ime.end}
           onKeyDown={(e) => {
             const m = mentionAt(text, caret);
-            const candidates = m && chat.collab ? mentionCandidates(chat.sessions, m.query, chat.sessionId) : [];
-            if (candidates.length > 0) {
+            const candidates = m && chat.collab && m.start !== pickerClosed ? mentionCandidates(chat.sessions, m.query, chat.sessionId) : [];
+            if (m && candidates.length > 0) {
               if (e.key === "ArrowDown" || e.key === "ArrowUp") {
                 e.preventDefault();
                 const step = e.key === "ArrowDown" ? 1 : -1;
@@ -268,6 +272,7 @@ export function Composer({ machineId, machineName, health }: { machineId: string
               if (e.key === "Escape") {
                 e.preventDefault();
                 setPickerActive(0);
+                setPickerClosed(m.start);
                 return;
               }
             }
