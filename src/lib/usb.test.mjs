@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { active, deviceDetail, ids, shareBlocker, stateLabel, usbError } from "./usb.ts";
+import { active, deviceDetail, groupDevices, ids, setupCommand, shareBlocker, stateLabel, usbError } from "./usb.ts";
 
 test("device details and states read plainly", () => {
   assert.equal(ids(0x1209, 1), "1209:0001");
@@ -24,4 +24,17 @@ test("usbError reads mobd's message and code", async () => {
   const busy = new Response(JSON.stringify({ error: "the device is in use: /dev/sdb1 is mounted at /mnt", code: "usb_busy" }), { status: 409 });
   assert.deepEqual(await usbError(busy), { message: "the device is in use: /dev/sdb1 is mounted at /mnt", code: "usb_busy" });
   assert.deepEqual(await usbError(new Response("oops", { status: 502 })), { message: "mobd answered 502" });
+});
+
+test("setupCommand pulls the command out of mobd's reason", () => {
+  assert.deepEqual(setupCommand("the USB helper is not running: run `sudo mobd usb setup` once on this computer"),
+    { text: "the USB helper is not running", command: "sudo mobd usb setup" });
+  assert.deepEqual(setupCommand("needs Apple's entitlement"), { text: "needs Apple's entitlement" });
+  assert.deepEqual(setupCommand(undefined), { text: "" });
+});
+
+test("groupDevices puts shareable devices first, sorted", () => {
+  const g = groupDevices([{ name: "Keyboard", unavailable: "held" }, { name: "Probe" }, { name: "DFU board" }]);
+  assert.deepEqual(g.shareable.map((d) => d.name), ["DFU board", "Probe"]);
+  assert.deepEqual(g.held.map((d) => d.name), ["Keyboard"]);
 });
