@@ -1,6 +1,7 @@
 mod history;
 mod secrets;
 mod transfers;
+mod usb;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -23,6 +24,10 @@ pub fn run() {
             transfers::local_list,
             transfers::local_walk,
             transfers::local_reveal,
+            usb::usb_devices,
+            usb::usb_shares,
+            usb::usb_share,
+            usb::usb_stop,
             history::history_load,
             history::history_list,
             history::history_save,
@@ -35,7 +40,10 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             use tauri::Manager;
-            app.manage(history::History::new(app.path().app_data_dir()?.join("history.sqlite")));
+            app.manage(history::History::new(
+                app.path().app_data_dir()?.join("history.sqlite"),
+            ));
+            app.manage(usb::Shares::default());
             if app.config().plugins.0.contains_key("updater") {
                 app.handle()
                     .plugin(tauri_plugin_updater::Builder::new().build())?;

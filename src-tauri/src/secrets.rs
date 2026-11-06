@@ -41,8 +41,8 @@ pub struct StorageInfo {
 }
 
 pub fn storage_info() -> StorageInfo {
-    let file_active = USED_FILE_FALLBACK.load(Ordering::Relaxed)
-        || KEYRING_UNAVAILABLE.load(Ordering::Relaxed);
+    let file_active =
+        USED_FILE_FALLBACK.load(Ordering::Relaxed) || KEYRING_UNAVAILABLE.load(Ordering::Relaxed);
     StorageInfo {
         backend: if file_active { "file" } else { "keyring" },
         path: if file_active {
@@ -253,7 +253,10 @@ fn decrypt_blob(key: &[u8; KEY_LEN], blob: &[u8]) -> Result<Vec<u8>, String> {
         .map_err(|_| "failed to decrypt credential store (wrong key or corrupt file)".into())
 }
 
-fn load_map(dir: &Path, key: &[u8; KEY_LEN]) -> Result<serde_json::Map<String, serde_json::Value>, String> {
+fn load_map(
+    dir: &Path,
+    key: &[u8; KEY_LEN],
+) -> Result<serde_json::Map<String, serde_json::Value>, String> {
     let path = store_path(dir);
     if !path.exists() {
         return Ok(serde_json::Map::new());
@@ -380,7 +383,9 @@ mod tests {
             assert!(store_path(dir).exists());
             // Ciphertext must not contain the plaintext token.
             let blob = fs::read(store_path(dir)).unwrap();
-            assert!(!blob.windows(b"secret-value".len()).any(|w| w == b"secret-value"));
+            assert!(!blob
+                .windows(b"secret-value".len())
+                .any(|w| w == b"secret-value"));
             delete("m1.token").unwrap();
             assert!(get("m1.token").unwrap().is_none());
         });
@@ -413,11 +418,18 @@ mod tests {
         USED_FILE_FALLBACK.store(false, Ordering::SeqCst);
 
         let account = format!("fallback-test-{}.token", rand::random::<u32>());
-        let backend = set(&account, "fallback-secret").expect("set should succeed via keyring or file");
-        assert!(backend == "keyring" || backend == "file", "unexpected backend {backend}");
+        let backend =
+            set(&account, "fallback-secret").expect("set should succeed via keyring or file");
+        assert!(
+            backend == "keyring" || backend == "file",
+            "unexpected backend {backend}"
+        );
         assert_eq!(get(&account).unwrap().as_deref(), Some("fallback-secret"));
         if backend == "file" {
-            assert!(USED_FILE_FALLBACK.load(Ordering::SeqCst) || KEYRING_UNAVAILABLE.load(Ordering::SeqCst));
+            assert!(
+                USED_FILE_FALLBACK.load(Ordering::SeqCst)
+                    || KEYRING_UNAVAILABLE.load(Ordering::SeqCst)
+            );
             assert!(store_path(&dir).exists() || master_key_path(&dir).exists());
         }
         delete(&account).unwrap();

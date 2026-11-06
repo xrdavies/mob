@@ -1,6 +1,6 @@
 # Desktop USB redirection
 
-Status: draft USB-1, 2026-11-01. Not implemented or released.
+Status: USB-2, 2026-11-06. Implemented (see [Status](#status-desktop)); not released.
 
 The [mobd USB design](https://github.com/xrdavies/mobd/blob/main/docs/usb-redirection.md)
 is the canonical contract for direction, capability, states, security and release
@@ -111,3 +111,31 @@ Test signed packages on clean supported systems, with ordinary security enabled.
 Record exact exporter/importer versions, devices and latency results. A backend
 claim or successful enumeration is not release evidence. Update this draft and
 the iOS, Android and site companions whenever the canonical contract changes.
+
+## Status: Desktop
+
+- **USB dialog** (title bar **USB**, or "Share a USB device" in the command palette), shown when
+  the office mobd lists `usbRedirection`: this computer's devices, the office computer's readiness
+  and reason (for example `sudo mobd usb setup` not run yet), and active shares with **Stop
+  sharing**. A share belongs to the app, not a chat or the live view; quitting Mob ends it. The
+  title bar counts the machine's active shares.
+- **Exporter** (`src-tauri/src/usb`): a USB/IP server in Rust that answers mobd's import for the
+  one shared bus ID, then carries URBs through [nusb](https://github.com/kevinmehall/nusb) (no
+  libusb to bundle). The tunnel is the session's WebSocket with the address's credential from the
+  keychain. Endpoint 0 requests run on blocking tasks; each other endpoint has its own thread, so
+  URBs stay in order and an unlink cancels only its URB. Configuration, alternate settings and
+  clear-halt are carried out on the device; isochronous transfers are refused.
+- **macOS:** devices whose interfaces macOS's own drivers hold (drives, input devices, audio,
+  cameras, CDC serial adapters) are listed as not shareable from a Mac, with why. Vendor-class
+  devices (many debug probes, DFU bootloaders) can be claimed.
+- **Stop** releases through mobd, which detaches first. A drive still mounted on the office
+  computer refuses that, and the dialog offers **Detach anyway** with the data-loss warning.
+- **Trying it without hardware:** start the app with `MOB_USB_EMULATED=1` to list an emulated
+  loopback device (pid.codes `1209:0001`).
+
+Verified: the Rust exporter with the emulated device, run on a Mac, shared it with branch mobd in a
+Linux VM. Linux enumerated it, usbfs moved 256 KiB through it and back unchanged, and release
+detached it before the tunnel closed. Unit tests cover parsing, the exporter and unlinks.
+
+Not verified: any real USB device (none was available), the dialog in the packaged app, and a
+Linux or Windows Desktop build.

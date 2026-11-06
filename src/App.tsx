@@ -1,5 +1,6 @@
 import { UpdateNotice } from "@/components/UpdateNotice";
 import { FilesDialog } from "@/components/FilesDialog";
+import { UsbDialog } from "@/components/UsbDialog";
 import { useEffect, useState } from "react";
 import { Toaster } from "sonner";
 import { supports } from "@/api/client";
@@ -78,7 +79,7 @@ function NeedsPairing({ machine }: { machine: Machine }) {
 
 export default function App() {
   const machine = useActiveMachine();
-  const { sidebarOpen, previewOpen, filesOpen, savedSessions, rememberSession, set, togglePreview } = useApp();
+  const { sidebarOpen, previewOpen, filesOpen, usbOpen, savedSessions, rememberSession, set, togglePreview } = useApp();
   const chatState = useChat();
   const base = baseUrl(machine);
   const health = useHealth(machine);
@@ -183,6 +184,7 @@ export default function App() {
       </div>
       <SettingsDialog />
       {machine && <FilesDialog machine={machine} health={health.data} open={filesOpen} onOpenChange={(o) => set({ filesOpen: o })} />}
+      {machine && <UsbDialog machine={machine} health={health.data} open={usbOpen} onOpenChange={(o) => set({ usbOpen: o })} />}
       <CommandPalette onConnect={connectLive} />
       <Toaster theme={dark ? "dark" : "light"} position="bottom-center" />
     </TooltipProvider>

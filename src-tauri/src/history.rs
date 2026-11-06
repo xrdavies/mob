@@ -60,11 +60,19 @@ pub struct Turn {
 
 impl History {
     pub fn new(path: PathBuf) -> Self {
-        Self { path, conn: Mutex::new(None), limit: LIMIT, target: TARGET }
+        Self {
+            path,
+            conn: Mutex::new(None),
+            limit: LIMIT,
+            target: TARGET,
+        }
     }
 
     fn with<T>(&self, f: impl FnOnce(&mut Connection) -> rusqlite::Result<T>) -> Result<T, String> {
-        let mut guard = self.conn.lock().map_err(|_| "history lock poisoned".to_string())?;
+        let mut guard = self
+            .conn
+            .lock()
+            .map_err(|_| "history lock poisoned".to_string())?;
         if guard.is_none() {
             *guard = Some(connect(&self.path)?);
         }
@@ -82,7 +90,13 @@ impl History {
 
     /// The conversation's newest `limit` saved turns older than `before` (all when None),
     /// oldest first. Opening it (no `before`) makes it the most recently opened.
-    pub fn load(&self, machine: &str, id: &str, before: Option<i64>, limit: i64) -> Result<Option<Saved>, String> {
+    pub fn load(
+        &self,
+        machine: &str,
+        id: &str,
+        before: Option<i64>,
+        limit: i64,
+    ) -> Result<Option<Saved>, String> {
         self.with(|c| {
             let row = c
                 .query_row(
@@ -133,7 +147,14 @@ impl History {
     /// Saves the conversation row and turns (`replace` drops its other turns first). A turn is
     /// only replaced by one with at least its `rev`. Then evicts down to the limit, never touching
     /// the conversations in `keep` on this machine.
-    pub fn save(&self, machine: &str, conv: &Conversation, turns: &[Turn], replace: bool, keep: &[String]) -> Result<(), String> {
+    pub fn save(
+        &self,
+        machine: &str,
+        conv: &Conversation,
+        turns: &[Turn],
+        replace: bool,
+        keep: &[String],
+    ) -> Result<(), String> {
         self.with(|c| {
             let tx = c.transaction()?;
             tx.execute(
@@ -185,7 +206,10 @@ impl History {
                 break;
             }
             if i + 1 < count {
-                tx.execute("DELETE FROM turns WHERE machine = ?1 AND conversation = ?2", params![m, id])?;
+                tx.execute(
+                    "DELETE FROM turns WHERE machine = ?1 AND conversation = ?2",
+                    params![m, id],
+                )?;
                 total -= size;
             } else {
                 // The last one keeps its newest turns. The oldest kept turn needs a cursor, or the
@@ -193,7 +217,8 @@ impl History {
                 let rows: Vec<(String, i64, bool)> = {
                     let mut stmt =
                         tx.prepare("SELECT id, size, cursor IS NOT NULL FROM turns WHERE machine = ?1 AND conversation = ?2 ORDER BY seq")?;
-                    let rows = stmt.query_map(params![m, id], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))?;
+                    let rows =
+                        stmt.query_map(params![m, id], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))?;
                     rows.collect::<rusqlite::Result<_>>()?
                 };
                 let mut drop = 0;
@@ -202,7 +227,10 @@ impl History {
                     drop += 1;
                 }
                 for (turn, _, _) in &rows[..drop] {
-                    tx.execute("DELETE FROM turns WHERE machine = ?1 AND conversation = ?2 AND id = ?3", params![m, id, turn])?;
+                    tx.execute(
+                        "DELETE FROM turns WHERE machine = ?1 AND conversation = ?2 AND id = ?3",
+                        params![m, id, turn],
+                    )?;
                 }
             }
             // Without turns, the next open loads the newest page instead of changes since a revision.
@@ -222,12 +250,21 @@ impl History {
             let tx = c.transaction()?;
             match id {
                 Some(id) => {
-                    tx.execute("DELETE FROM turns WHERE machine = ?1 AND conversation = ?2", params![machine, id])?;
-                    tx.execute("DELETE FROM conversations WHERE machine = ?1 AND id = ?2", params![machine, id])?;
+                    tx.execute(
+                        "DELETE FROM turns WHERE machine = ?1 AND conversation = ?2",
+                        params![machine, id],
+                    )?;
+                    tx.execute(
+                        "DELETE FROM conversations WHERE machine = ?1 AND id = ?2",
+                        params![machine, id],
+                    )?;
                 }
                 None => {
                     tx.execute("DELETE FROM turns WHERE machine = ?1", params![machine])?;
-                    tx.execute("DELETE FROM conversations WHERE machine = ?1", params![machine])?;
+                    tx.execute(
+                        "DELETE FROM conversations WHERE machine = ?1",
+                        params![machine],
+                    )?;
                 }
             }
             tx.commit()
@@ -239,7 +276,8 @@ impl History {
         let gone: Vec<String> = self.with(|c| {
             let mut stmt = c.prepare("SELECT id FROM conversations WHERE machine = ?1")?;
             let rows = stmt.query_map(params![machine], |r| r.get::<_, String>(0))?;
-            rows.filter(|r| !matches!(r, Ok(id) if ids.contains(id))).collect()
+            rows.filter(|r| !matches!(r, Ok(id) if ids.contains(id)))
+                .collect()
         })?;
         for id in gone {
             self.remove(machine, Some(&id))?;
@@ -261,7 +299,11 @@ impl History {
 }
 
 fn total(c: &Connection) -> rusqlite::Result<i64> {
-    c.query_row("SELECT COALESCE(SUM(size), 0) FROM conversations", [], |r| r.get(0))
+    c.query_row(
+        "SELECT COALESCE(SUM(size), 0) FROM conversations",
+        [],
+        |r| r.get(0),
+    )
 }
 
 fn resize(c: &Connection, machine: &str, id: &str) -> rusqlite::Result<()> {
@@ -275,7 +317,10 @@ fn resize(c: &Connection, machine: &str, id: &str) -> rusqlite::Result<()> {
 }
 
 fn corrupt(e: &rusqlite::Error) -> bool {
-    matches!(e.sqlite_error_code(), Some(ErrorCode::DatabaseCorrupt | ErrorCode::NotADatabase))
+    matches!(
+        e.sqlite_error_code(),
+        Some(ErrorCode::DatabaseCorrupt | ErrorCode::NotADatabase)
+    )
 }
 
 fn discard(path: &Path) {
@@ -289,7 +334,8 @@ fn discard(path: &Path) {
 /// Opens the copy, rebuilding it once when it is corrupt or from another schema version.
 fn connect(path: &Path) -> Result<Connection, String> {
     if let Some(dir) = path.parent() {
-        std::fs::create_dir_all(dir).map_err(|e| format!("Could not create {}: {e}", dir.display()))?;
+        std::fs::create_dir_all(dir)
+            .map_err(|e| format!("Could not create {}: {e}", dir.display()))?;
         private(dir, 0o700);
     }
     match open(path) {
@@ -306,11 +352,17 @@ fn open(path: &Path) -> rusqlite::Result<Connection> {
     private(path, 0o600);
     let version: i64 = c.pragma_query_value(None, "user_version", |r| r.get(0))?;
     if version != 0 && version != SCHEMA {
-        return Err(rusqlite::Error::SqliteFailure(rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_NOTADB), Some("schema".into())));
+        return Err(rusqlite::Error::SqliteFailure(
+            rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_NOTADB),
+            Some("schema".into()),
+        ));
     }
     let check: String = c.query_row("PRAGMA quick_check", [], |r| r.get(0))?;
     if check != "ok" {
-        return Err(rusqlite::Error::SqliteFailure(rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_CORRUPT), Some(check)));
+        return Err(rusqlite::Error::SqliteFailure(
+            rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_CORRUPT),
+            Some(check),
+        ));
     }
     c.execute_batch(
         "CREATE TABLE IF NOT EXISTS conversations (
@@ -338,12 +390,21 @@ fn private(_: &Path, _: u32) {}
 // Async commands run off the main thread; SQLite work is short and serialized by the mutex.
 
 #[tauri::command]
-pub async fn history_load(history: State<'_, History>, machine: String, id: String, before: Option<i64>, limit: i64) -> Result<Option<Saved>, String> {
+pub async fn history_load(
+    history: State<'_, History>,
+    machine: String,
+    id: String,
+    before: Option<i64>,
+    limit: i64,
+) -> Result<Option<Saved>, String> {
     history.load(&machine, &id, before, limit)
 }
 
 #[tauri::command]
-pub async fn history_list(history: State<'_, History>, machine: String) -> Result<Vec<String>, String> {
+pub async fn history_list(
+    history: State<'_, History>,
+    machine: String,
+) -> Result<Vec<String>, String> {
     history.list(&machine)
 }
 
@@ -360,12 +421,20 @@ pub async fn history_save(
 }
 
 #[tauri::command]
-pub async fn history_remove(history: State<'_, History>, machine: String, id: Option<String>) -> Result<(), String> {
+pub async fn history_remove(
+    history: State<'_, History>,
+    machine: String,
+    id: Option<String>,
+) -> Result<(), String> {
     history.remove(&machine, id.as_deref())
 }
 
 #[tauri::command]
-pub async fn history_prune(history: State<'_, History>, machine: String, ids: Vec<String>) -> Result<(), String> {
+pub async fn history_prune(
+    history: State<'_, History>,
+    machine: String,
+    ids: Vec<String>,
+) -> Result<(), String> {
     history.prune(&machine, &ids)
 }
 
@@ -390,27 +459,51 @@ mod tests {
     }
 
     fn conv(id: &str, rev: i64) -> Conversation {
-        Conversation { id: id.into(), session: format!("{{\"id\":\"{id}\"}}"), sync_rev: rev }
+        Conversation {
+            id: id.into(),
+            session: format!("{{\"id\":\"{id}\"}}"),
+            sync_rev: rev,
+        }
     }
 
     fn turn(id: &str, seq: i64, rev: i64, size: usize, cursor: Option<&str>) -> Turn {
-        Turn { id: id.into(), seq, rev, cursor: cursor.map(Into::into), data: "x".repeat(size) }
+        Turn {
+            id: id.into(),
+            seq,
+            rev,
+            cursor: cursor.map(Into::into),
+            data: "x".repeat(size),
+        }
     }
 
     fn seqs(h: &History, id: &str) -> Vec<i64> {
-        h.load("m", id, Some(i64::MAX), 1000).unwrap().map(|s| s.turns.iter().map(|t| t.seq).collect()).unwrap_or_default()
+        h.load("m", id, Some(i64::MAX), 1000)
+            .unwrap()
+            .map(|s| s.turns.iter().map(|t| t.seq).collect())
+            .unwrap_or_default()
     }
 
     #[test]
     fn saves_and_pages_turns_in_order() {
         let h = History::new(temp("pages"));
-        let turns: Vec<_> = (1..=5).map(|i| turn(&format!("t{i}"), i, i, 10, (i == 2).then_some("c2"))).collect();
+        let turns: Vec<_> = (1..=5)
+            .map(|i| turn(&format!("t{i}"), i, i, 10, (i == 2).then_some("c2")))
+            .collect();
         h.save("m", &conv("s", 9), &turns[1..], true, &[]).unwrap();
         let s = h.load("m", "s", None, 2).unwrap().unwrap();
-        assert_eq!((s.sync_rev, s.oldest, s.cursor.as_deref()), (9, Some(2), Some("c2")));
-        assert_eq!(s.turns.iter().map(|t| t.seq).collect::<Vec<_>>(), vec![4, 5]);
+        assert_eq!(
+            (s.sync_rev, s.oldest, s.cursor.as_deref()),
+            (9, Some(2), Some("c2"))
+        );
+        assert_eq!(
+            s.turns.iter().map(|t| t.seq).collect::<Vec<_>>(),
+            vec![4, 5]
+        );
         let older = h.load("m", "s", Some(4), 10).unwrap().unwrap();
-        assert_eq!(older.turns.iter().map(|t| t.seq).collect::<Vec<_>>(), vec![2, 3]);
+        assert_eq!(
+            older.turns.iter().map(|t| t.seq).collect::<Vec<_>>(),
+            vec![2, 3]
+        );
         assert!(h.load("m", "other", None, 2).unwrap().is_none());
         assert_eq!(h.list("m").unwrap(), vec!["{\"id\":\"s\"}".to_string()]);
     }
@@ -418,12 +511,27 @@ mod tests {
     #[test]
     fn keeps_the_newer_turn_and_its_cursor() {
         let h = History::new(temp("rev"));
-        h.save("m", &conv("s", 1), &[turn("t1", 1, 5, 3, Some("c1"))], false, &[]).unwrap();
-        h.save("m", &conv("s", 2), &[turn("t1", 1, 4, 9, None)], false, &[]).unwrap();
-        assert_eq!(h.load("m", "s", None, 9).unwrap().unwrap().turns[0].data, "xxx");
-        h.save("m", &conv("s", 3), &[turn("t1", 1, 6, 4, None)], false, &[]).unwrap();
+        h.save(
+            "m",
+            &conv("s", 1),
+            &[turn("t1", 1, 5, 3, Some("c1"))],
+            false,
+            &[],
+        )
+        .unwrap();
+        h.save("m", &conv("s", 2), &[turn("t1", 1, 4, 9, None)], false, &[])
+            .unwrap();
+        assert_eq!(
+            h.load("m", "s", None, 9).unwrap().unwrap().turns[0].data,
+            "xxx"
+        );
+        h.save("m", &conv("s", 3), &[turn("t1", 1, 6, 4, None)], false, &[])
+            .unwrap();
         let s = h.load("m", "s", None, 9).unwrap().unwrap();
-        assert_eq!((s.turns[0].data.as_str(), s.cursor.as_deref()), ("xxxx", Some("c1")));
+        assert_eq!(
+            (s.turns[0].data.as_str(), s.cursor.as_deref()),
+            ("xxxx", Some("c1"))
+        );
         assert_eq!(h.size().unwrap(), 4 + "{\"id\":\"s\"}".len() as i64);
     }
 
@@ -431,20 +539,61 @@ mod tests {
     fn evicts_least_recently_opened_and_trims_the_last() {
         let mut h = History::new(temp("evict"));
         (h.limit, h.target) = (1000, 950);
-        h.save("m", &conv("a", 1), &[turn("a1", 1, 1, 300, None)], false, &[]).unwrap();
-        h.save("m", &conv("b", 1), &[turn("b1", 1, 1, 300, None)], false, &[]).unwrap();
-        h.save("m", &conv("c", 1), &[turn("c1", 1, 1, 300, None)], false, &[]).unwrap();
+        h.save(
+            "m",
+            &conv("a", 1),
+            &[turn("a1", 1, 1, 300, None)],
+            false,
+            &[],
+        )
+        .unwrap();
+        h.save(
+            "m",
+            &conv("b", 1),
+            &[turn("b1", 1, 1, 300, None)],
+            false,
+            &[],
+        )
+        .unwrap();
+        h.save(
+            "m",
+            &conv("c", 1),
+            &[turn("c1", 1, 1, 300, None)],
+            false,
+            &[],
+        )
+        .unwrap();
         h.load("m", "a", None, 1).unwrap();
         // Over the limit: b was opened least recently; c is open, so it is kept.
-        h.save("m", &conv("c", 2), &[turn("c2", 2, 2, 300, None)], false, &["c".into()]).unwrap();
-        assert_eq!((seqs(&h, "a"), seqs(&h, "b"), seqs(&h, "c")), (vec![1], vec![], vec![1, 2]));
+        h.save(
+            "m",
+            &conv("c", 2),
+            &[turn("c2", 2, 2, 300, None)],
+            false,
+            &["c".into()],
+        )
+        .unwrap();
+        assert_eq!(
+            (seqs(&h, "a"), seqs(&h, "b"), seqs(&h, "c")),
+            (vec![1], vec![], vec![1, 2])
+        );
         assert_eq!(h.load("m", "b", None, 1).unwrap().unwrap().sync_rev, 0);
         assert_eq!(h.list("m").unwrap().len(), 3, "conversations stay listed");
 
         // One conversation alone over the limit keeps its newest turns, from one with a cursor.
         let mut h = History::new(temp("trim"));
         (h.limit, h.target) = (1000, 500);
-        let turns: Vec<_> = (1..=6).map(|i| turn(&format!("t{i}"), i, 1, 200, [1, 3, 5].contains(&i).then_some("c"))).collect();
+        let turns: Vec<_> = (1..=6)
+            .map(|i| {
+                turn(
+                    &format!("t{i}"),
+                    i,
+                    1,
+                    200,
+                    [1, 3, 5].contains(&i).then_some("c"),
+                )
+            })
+            .collect();
         h.save("m", &conv("s", 7), &turns, false, &[]).unwrap();
         assert_eq!(seqs(&h, "s"), vec![5, 6]);
         let s = h.load("m", "s", None, 9).unwrap().unwrap();
@@ -455,7 +604,14 @@ mod tests {
     fn removes_prunes_and_clears() {
         let h = History::new(temp("remove"));
         for (m, id) in [("m", "a"), ("m", "b"), ("m", "c"), ("n", "a")] {
-            h.save(m, &conv(id, 1), &[turn(&format!("{id}1"), 1, 1, 5, None)], false, &[]).unwrap();
+            h.save(
+                m,
+                &conv(id, 1),
+                &[turn(&format!("{id}1"), 1, 1, 5, None)],
+                false,
+                &[],
+            )
+            .unwrap();
         }
         h.remove("m", Some("a")).unwrap();
         h.prune("m", &["c".into()]).unwrap();
@@ -471,9 +627,14 @@ mod tests {
     fn rebuilds_a_corrupt_or_foreign_file() {
         let path = temp("corrupt");
         std::fs::create_dir_all(path.parent().unwrap()).unwrap();
-        std::fs::write(&path, b"not a database at all, just text that is long enough").unwrap();
+        std::fs::write(
+            &path,
+            b"not a database at all, just text that is long enough",
+        )
+        .unwrap();
         let h = History::new(path.clone());
-        h.save("m", &conv("s", 1), &[turn("t1", 1, 1, 5, None)], false, &[]).unwrap();
+        h.save("m", &conv("s", 1), &[turn("t1", 1, 1, 5, None)], false, &[])
+            .unwrap();
         assert_eq!(seqs(&h, "s"), vec![1]);
         drop(h);
 
@@ -481,7 +642,10 @@ mod tests {
         c.pragma_update(None, "user_version", 99).unwrap();
         drop(c);
         let h = History::new(path);
-        assert!(h.list("m").unwrap().is_empty(), "another schema version starts over");
+        assert!(
+            h.list("m").unwrap().is_empty(),
+            "another schema version starts over"
+        );
     }
 
     #[cfg(unix)]
