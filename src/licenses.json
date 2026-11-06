@@ -525,6 +525,13 @@
   "source": "npm"
  },
  {
+  "name": "@tauri-apps/plugin-opener",
+  "version": "2.7.2",
+  "license": "MIT OR Apache-2.0",
+  "url": "https://github.com/tauri-apps/plugins-workspace",
+  "source": "npm"
+ },
+ {
   "name": "@tauri-apps/plugin-process",
   "version": "2.4.0",
   "license": "MIT OR Apache-2.0",
@@ -2443,6 +2450,13 @@
   "source": "crate"
  },
  {
+  "name": "open",
+  "version": "5.4.5",
+  "license": "MIT",
+  "url": "https://github.com/Byron/open-rs",
+  "source": "crate"
+ },
+ {
   "name": "option-ext",
   "version": "0.2.0",
   "license": "MPL-2.0",
@@ -3250,6 +3264,13 @@
  {
   "name": "tauri-plugin-fs",
   "version": "2.7.1",
+  "license": "Apache-2.0 OR MIT",
+  "url": "https://github.com/tauri-apps/plugins-workspace",
+  "source": "crate"
+ },
+ {
+  "name": "tauri-plugin-opener",
+  "version": "2.7.2",
   "license": "Apache-2.0 OR MIT",
   "url": "https://github.com/tauri-apps/plugins-workspace",
   "source": "crate"

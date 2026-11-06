@@ -1,6 +1,7 @@
 import { Check, Copy } from "lucide-react";
 import { memo, useEffect, useState, type ComponentProps } from "react";
 import ReactMarkdown from "react-markdown";
+import { MarkdownLink } from "./MarkdownLink";
 import remarkGfm from "remark-gfm";
 
 type Highlighter = Awaited<ReturnType<typeof import("shiki/core").createHighlighterCore>>;
@@ -104,11 +105,7 @@ const components: ComponentProps<typeof ReactMarkdown>["components"] = {
     if (!match && !text.includes("\n")) return <code>{children}</code>;
     return <CodeBlock code={text.replace(/\n$/, "")} lang={match?.[1] ?? ""} />;
   },
-  a: ({ children, href }) => (
-    <a href={href} target="_blank" rel="noreferrer">
-      {children}
-    </a>
-  ),
+  a: ({ children, href }) => <MarkdownLink href={href}>{children}</MarkdownLink>,
 };
 
 export const Markdown = memo(function Markdown({ text }: { text: string }) {

@@ -32,6 +32,11 @@ pub fn run() {
             history::history_size
         ])
         .plugin(tauri_plugin_process::init())
+        .plugin(
+            tauri_plugin_opener::Builder::new()
+                .open_js_links_on_click(false)
+                .build(),
+        )
         .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             use tauri::Manager;
