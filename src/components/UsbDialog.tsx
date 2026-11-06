@@ -1,7 +1,7 @@
 // USB devices: share one plugged into this computer with the office computer, see and stop shares.
 // mobd docs/usb-redirection.md. A share outlives this dialog and chat changes; quitting Mob ends it.
 import { useEffect, useState } from "react";
-import { RefreshCw, TriangleAlert, Usb, X } from "lucide-react";
+import { Check, ChevronRight, CircleCheck, Copy, RefreshCw, TriangleAlert, Usb, X } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { invoke } from "@tauri-apps/api/core";
 import type { Health } from "@/api/types";
@@ -13,12 +13,66 @@ import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/compone
 import { Tooltip } from "@/components/ui/tooltip";
 import { authFetch } from "@/lib/auth";
 import { currentAddress } from "@/lib/machines";
-import { active, deviceDetail, shareBlocker, stateLabel, type LocalDevice, type UsbImporter } from "@/lib/usb";
+import { active, deviceDetail, groupDevices, setupCommand, shareBlocker, stateLabel, type LocalDevice, type UsbImporter } from "@/lib/usb";
+import { isMac } from "@/lib/platform";
 import { cn } from "@/lib/utils";
-import { baseUrl, type Machine } from "@/store/app";
+import { baseUrl, useApp, type Machine } from "@/store/app";
 import { BusyError, useUsb, type Share } from "@/store/usb";
 
 const message = (e: unknown) => String(e instanceof Error ? e.message : e);
+
+/** Why the office computer can't use shared devices, with the command that fixes it to copy. */
+function NotReady({ name, detail }: { name: string; detail?: string }) {
+  const { text, command } = setupCommand(detail);
+  const [copied, setCopied] = useState(false);
+  return (
+    <div className="mt-4 flex gap-2.5 rounded-lg border border-warning/40 bg-warning/10 p-3 text-xs">
+      <TriangleAlert className="mt-px size-3.5 shrink-0 text-warning" />
+      <div className="min-w-0 flex-1">
+        <p>{name} can't use shared USB devices yet{text ? `: ${text}` : ""}.</p>
+        {command && (
+          <>
+            <p className="mt-2 text-muted-foreground">Run this once on {name}:</p>
+            <div className="mt-1 flex items-center gap-1 rounded-md border bg-background pl-2.5">
+              <code className="min-w-0 flex-1 truncate font-mono text-[12px]">{command}</code>
+              <Button variant="ghost" size="icon-sm" aria-label="Copy command" onClick={() => {
+                void navigator.clipboard.writeText(command);
+                setCopied(true);
+                setTimeout(() => setCopied(false), 1500);
+              }}>
+                {copied ? <Check /> : <Copy />}
+              </Button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function DeviceRow({ d, machine, sharedWith, blocker, starting, onShare }: {
+  d: LocalDevice; machine: string; sharedWith?: string; blocker: string; starting?: string; onShare: () => void;
+}) {
+  return (
+    <div className="flex items-center gap-3 border-b px-3 py-2 last:border-b-0">
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-[13px] font-medium">{d.name}</p>
+        <p className="truncate text-[11px] text-muted-foreground">{deviceDetail(d)}</p>
+      </div>
+      {sharedWith || d.shared ? (
+        <span className="shrink-0 text-xs text-muted-foreground">{!sharedWith || sharedWith === machine ? "Shared" : `Shared with ${sharedWith}`}</span>
+      ) : (
+        <Tooltip content={blocker || `Share with ${machine}`}>
+          <span>
+            <Button size="sm" variant="secondary" disabled={!!blocker || !!starting} onClick={onShare}>
+              {starting === d.busId && <Spinner className="size-3" />} Share
+            </Button>
+          </span>
+        </Tooltip>
+      )}
+    </div>
+  );
+}
 
 export function UsbDialog({ machine, health, open, onOpenChange }: { machine: Machine; health?: Health; open: boolean; onOpenChange: (open: boolean) => void }) {
   const base = baseUrl(machine);
@@ -42,7 +96,16 @@ export function UsbDialog({ machine, health, open, onOpenChange }: { machine: Ma
     queryKey: ["usb-devices"],
     enabled: open && isTauri,
     queryFn: () => invoke<LocalDevice[]>("usb_devices"),
+    // A device plugged in or out while the dialog is open shows up without Refresh.
+    refetchInterval: open ? 2000 : false,
   });
+  const machines = useApp((s) => s.machines);
+  /** Which machine a device of this computer is shared with now, if any. */
+  const sharedWith = (busId: string) => {
+    const s = Object.values(allShares).find((x) => x.busId === busId && active(x.state));
+    return s ? machines.find((m) => m.id === s.machineId)?.name ?? "another computer" : undefined;
+  };
+  const groups = groupDevices(devices.data ?? []);
   // A share starting or ending changes which devices show as shared.
   const activeCount = Object.values(allShares).filter((s) => active(s.state)).length;
   useEffect(() => {
@@ -82,12 +145,12 @@ export function UsbDialog({ machine, health, open, onOpenChange }: { machine: Ma
           <p className="mt-4 rounded-lg bg-panel p-3 text-[13px] text-muted-foreground">Update mobd on {machine.name} to share USB devices with it.</p>
         ) : (
           <>
-            {importer.data && !importer.data.ready && (
-              <div className="mt-4 flex gap-2.5 rounded-lg border border-warning/40 bg-warning/10 p-3 text-xs">
-                <TriangleAlert className="mt-px size-3.5 shrink-0 text-warning" />
-                <p>{machine.name} can't use shared USB devices yet: {importer.data.detail}</p>
-              </div>
+            {importer.data?.ready && (
+              <p className="mt-4 flex items-center gap-1.5 text-xs text-muted-foreground">
+                <CircleCheck className="size-3.5 text-success" /> {machine.name} is ready to use shared devices.
+              </p>
             )}
+            {importer.data && !importer.data.ready && <NotReady name={machine.name} detail={importer.data.detail} />}
             {importer.isError && <p className="mt-4 text-xs text-danger">Couldn't ask {machine.name}: {message(importer.error)}</p>}
 
             {shares.length > 0 && (
@@ -108,35 +171,35 @@ export function UsbDialog({ machine, health, open, onOpenChange }: { machine: Ma
                 {devices.isLoading && <p className="p-3 text-xs text-muted-foreground">Looking for USB devices…</p>}
                 {devices.isError && <p className="p-3 text-xs text-danger">{message(devices.error)}</p>}
                 {devices.data?.length === 0 && <p className="p-3 text-xs text-muted-foreground">No USB devices are plugged into this computer.</p>}
-                {devices.data?.map((d) => {
-                  const blocker = shareBlocker(d, importer.data);
-                  return (
-                    <div key={d.busId} className={cn("flex items-center gap-3 border-b px-3 py-2 last:border-b-0", d.unavailable && "opacity-60")}>
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-[13px] font-medium">{d.name}</p>
-                        <p className="truncate text-[11px] text-muted-foreground">{d.unavailable ?? deviceDetail(d)}</p>
-                      </div>
-                      {d.shared ? (
-                        <span className="text-xs text-muted-foreground">Shared</span>
-                      ) : (
-                        <Tooltip content={blocker || `Share with ${machine.name}`}>
-                          <span>
-                            <Button size="sm" variant="secondary" disabled={!!blocker || !!starting} onClick={() => void share(d)}>
-                              {starting === d.busId && <Spinner className="size-3" />} Share
-                            </Button>
-                          </span>
-                        </Tooltip>
-                      )}
-                    </div>
-                  );
-                })}
+                {groups.shareable.map((d) => (
+                  <DeviceRow key={d.busId} d={d} machine={machine.name} sharedWith={sharedWith(d.busId)}
+                    blocker={shareBlocker(d, importer.data)} starting={starting} onShare={() => void share(d)} />
+                ))}
+                {groups.shareable.length === 0 && !!devices.data?.length && (
+                  <p className="p-3 text-xs text-muted-foreground">No device here can be shared from this computer.</p>
+                )}
               </div>
+              {groups.held.length > 0 && (
+                <details className="group mt-2">
+                  <summary className="flex cursor-default list-none items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
+                    <ChevronRight className="size-3.5 transition-transform group-open:rotate-90" />
+                    {groups.held.length} that can't be shared from this {isMac ? "Mac" : "computer"}
+                  </summary>
+                  <div className="mt-1.5 rounded-lg border opacity-70">
+                    {groups.held.map((d) => (
+                      <div key={d.busId} className="border-b px-3 py-2 last:border-b-0">
+                        <p className="truncate text-[13px]">{d.name}</p>
+                        <p className="text-[11px] text-muted-foreground">{d.unavailable}</p>
+                      </div>
+                    ))}
+                  </div>
+                </details>
+              )}
             </section>
 
             {error && <p role="alert" className="mt-3 text-xs text-danger">{error}</p>}
             <p className="mt-3 text-[11px] leading-relaxed text-muted-foreground">
-              While shared, only {machine.name} can use the device. Eject a drive on this computer before sharing it. Sharing stops when you
-              quit Mob, unplug the device or lose the connection; a write or firmware flash in progress may then be cut off.
+              While shared, only {machine.name} can use the device. Quitting Mob or losing the connection unplugs it there.
             </p>
           </>
         )}

@@ -67,3 +67,20 @@ export async function usbError(res: Response): Promise<{ message: string; code?:
     return { message: `mobd answered ${res.status}` };
   }
 }
+
+/** mobd's readiness reason split into the problem and the command that fixes it (quoted in
+ * backticks there), so the command can be shown and copied on its own. */
+export function setupCommand(detail?: string): { text: string; command?: string } {
+  const d = detail ?? "";
+  const m = /`([^`]+)`/.exec(d);
+  if (!m) return { text: d };
+  // "the USB helper is not running: run `…` once on this computer" → "the USB helper is not running"
+  const text = d.slice(0, m.index).replace(/[:,]?\s*(run|with)?\s*$/i, "").trim();
+  return { text, command: m[1] };
+}
+
+/** Devices that can be shared from this computer first, then the ones its own drivers hold. */
+export function groupDevices<T extends Pick<LocalDevice, "unavailable" | "name">>(list: T[]): { shareable: T[]; held: T[] } {
+  const byName = (a: T, b: T) => a.name.localeCompare(b.name);
+  return { shareable: list.filter((d) => !d.unavailable).sort(byName), held: list.filter((d) => d.unavailable).sort(byName) };
+}
