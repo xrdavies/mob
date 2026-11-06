@@ -605,11 +605,17 @@ export class Chat {
     this.changed();
   }
 
-  async cancelRequest(requestId: string): Promise<void> {
+  /** Cancels a request; `stopTurn` also stops the other agent's turn working on it (mobd keeps a turn
+   * that handles another request too). Returns why the turn was kept, if it was. */
+  async cancelRequest(requestId: string, stopTurn = false): Promise<string> {
     try {
-      this.applyRequest(await this.request<CollabRequest>(`${this.url}/collab/requests/${requestId}/cancel`, { method: "POST" }));
+      const r = await this.request<CollabRequest & { turnKept?: string }>(
+        `${this.url}/collab/requests/${requestId}/cancel${stopTurn ? "?stopTurn=true" : ""}`, { method: "POST" });
+      this.applyRequest(r);
+      return r.turnKept ?? "";
     } catch (err) {
       this.fail(err);
+      return "";
     }
   }
 
