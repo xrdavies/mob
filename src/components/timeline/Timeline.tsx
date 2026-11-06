@@ -206,6 +206,8 @@ function PendingStrip({ requests, self }: { requests: CollabRequest[]; self: str
   const chat = useChat();
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
   const [openId, setOpenId] = useState<string | null>(null);
+  /** Why mobd kept the other agent's turn running after "Cancel and stop its turn". */
+  const [kept, setKept] = useState("");
   const shown = requests.filter((r) => !requestEnded(r.status) || !dismissed.has(r.id));
   // The dialog follows live updates to the request it shows.
   const detail = requests.find((r) => r.id === openId);
@@ -232,7 +234,7 @@ function PendingStrip({ requests, self }: { requests: CollabRequest[]; self: str
           )}
         </div>
       ))}
-      <Dialog open={!!detail} onOpenChange={(open) => !open && setOpenId(null)}>
+      <Dialog open={!!detail} onOpenChange={(open) => { if (!open) { setOpenId(null); setKept(""); } }}>
         <DialogContent className="w-[520px] p-5">
           <DialogTitle>{detail ? `${detail.fromName} → ${detail.toName}` : ""}</DialogTitle>
           <DialogDescription className={cn("mt-1", detail && needsUser(detail.status) && "text-danger")}>
@@ -260,11 +262,20 @@ function PendingStrip({ requests, self }: { requests: CollabRequest[]; self: str
               )}
             </div>
           )}
+          {kept && <p className="mt-3 text-xs text-muted-foreground">Its turn keeps running: {kept}.</p>}
           <div className="mt-4 flex justify-end gap-2">
             {detail && !requestEnded(detail.status) && (
-              <Button variant="danger" size="sm" onClick={() => void chat.cancelRequest(detail.id)}>Cancel request</Button>
+              <Button variant={detail.status === "in_progress" ? "secondary" : "danger"} size="sm" onClick={() => void chat.cancelRequest(detail.id)}>
+                Cancel request
+              </Button>
             )}
-            <Button variant="secondary" size="sm" onClick={() => setOpenId(null)}>Close</Button>
+            {/* Being handled: the other agent's turn keeps working unless it is stopped too. */}
+            {detail?.status === "in_progress" && (
+              <Button variant="danger" size="sm" onClick={async () => setKept(await chat.cancelRequest(detail.id, true))}>
+                Cancel and stop its turn
+              </Button>
+            )}
+            <Button variant="secondary" size="sm" onClick={() => { setOpenId(null); setKept(""); }}>Close</Button>
           </div>
         </DialogContent>
       </Dialog>
