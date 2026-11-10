@@ -72,6 +72,19 @@ pub fn setup(b: [u8; 8]) -> Setup {
     }
 }
 
+#[cfg(any(target_os = "windows", test))]
+fn control_matches_interface(
+    s: &Setup,
+    number: u8,
+    mut endpoints: impl Iterator<Item = u8>,
+) -> bool {
+    match s.request_type & 0x1f {
+        1 => number == s.index as u8,
+        2 => endpoints.any(|address| address == s.index as u8),
+        _ => true,
+    }
+}
+
 const GET_STATUS: u8 = 0;
 const CLEAR_FEATURE: u8 = 1;
 const SET_ADDRESS: u8 = 5;
@@ -426,9 +439,33 @@ impl Backend for Hardware {
             _ => Recipient::Other,
         };
         let timeout = Duration::from_secs(5);
+        #[cfg(not(target_os = "windows"))]
+        let control = &self.dev;
+        // WinUSB requires a claimed interface, including for device-level control requests.
+        #[cfg(target_os = "windows")]
+        let control = {
+            let st = self.state.lock().unwrap();
+            let iface = st
+                .interfaces
+                .iter()
+                .filter(|(number, iface)| {
+                    control_matches_interface(
+                        &s,
+                        **number,
+                        iface
+                            .descriptor()
+                            .into_iter()
+                            .flat_map(|d| d.endpoints().map(|e| e.address())),
+                    )
+                })
+                .min_by_key(|(number, _)| **number);
+            let Some((_, iface)) = iface else {
+                return Done::status(STALL);
+            };
+            iface.clone()
+        };
         if s.request_type & 0x80 != 0 {
-            let r = self
-                .dev
+            let r = control
                 .control_in(
                     ControlIn {
                         control_type,
@@ -446,8 +483,7 @@ impl Backend for Hardware {
                 Err(e) => Done::status(status_of(e)),
             }
         } else {
-            let r = self
-                .dev
+            let r = control
                 .control_out(
                     ControlOut {
                         control_type,
@@ -508,5 +544,24 @@ impl Backend for Hardware {
                 actual: c.actual_len,
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn control_routes_to_the_requested_interface_or_endpoint() {
+        let mut s = setup([0x81, GET_STATUS, 0, 0, 2, 1, 2, 0]);
+        assert!(control_matches_interface(&s, 2, [0x81].into_iter()));
+        assert!(!control_matches_interface(&s, 0, [0x81].into_iter()));
+        s.request_type = 0x82;
+        s.index = 0x81;
+        assert!(control_matches_interface(&s, 2, [0x01, 0x81].into_iter()));
+        assert!(!control_matches_interface(&s, 0, [0x01].into_iter()));
+        assert!(!control_matches_interface(&s, 0, [].into_iter()));
+        s.request_type = 0x80;
+        assert!(control_matches_interface(&s, 2, [].into_iter()));
     }
 }
