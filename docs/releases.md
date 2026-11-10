@@ -1,4 +1,4 @@
-# 发布与公开下载（macOS Apple Silicon）
+# 发布与公开下载（macOS、Windows、Linux）
 
 源码仓库可以保持私有。mobd 在独立的 [mobd 仓库](https://github.com/xrdavies/mobd)，
 其签名、安装器和发布配置见该仓库的 [发布文档](https://github.com/xrdavies/mobd/blob/main/docs/releases.md)。
@@ -7,8 +7,8 @@ Release 保存构建产物；发布正式 Release 后，独立工作流将产物
 R2，用户通过自定义域名下载。官网在同级目录 `../mob-site`，由 GitHub Pages 构建和部署。
 
 macOS 总是发布；Windows 和 Linux 只在仓库变量 `RELEASE_WINDOWS` / `RELEASE_LINUX` 为 `true`
-时构建和发布（构建与 R2 发布都读取这两个变量，开启的平台缺任何文件都会失败）。目前只发布
-macOS。所有平台共用同一个版本号、同一个 Tauri 更新密钥：
+时构建和发布（构建与 R2 发布都读取这两个变量，开启的平台缺任何文件都会失败）。从 v0.5.1 起
+开启这两个仓库变量，发布三个平台。所有平台共用同一个版本号、同一个 Tauri 更新密钥：
 
 | 平台 | 构建任务 | 下载文件 | 应用内更新 |
 | --- | --- | --- | --- |
@@ -80,7 +80,7 @@ macOS、Windows、Linux 测试包（Actions 构建产物，保留 14 天），�
 | `DOWNLOAD_BASE_URL` | `https://dl.mymob.dev`；不能含路径、认证信息或查询参数 |
 | `R2_ACCOUNT_ID` | Cloudflare 的 32 位账户 ID |
 | `R2_BUCKET` | 发布桶名称，如 `mob-releases` |
-| `RELEASE_WINDOWS` / `RELEASE_LINUX` | 可选，**仓库级** Variable（Settings → Secrets and variables → Actions → Variables；任务级 `if` 读不到 environment 变量）。设为 `true` 时构建并发布该平台；目前都不设置，只发布 macOS |
+| `RELEASE_WINDOWS` / `RELEASE_LINUX` | **仓库级** Variable（Settings → Secrets and variables → Actions → Variables；任务级 `if` 读不到 environment 变量）。从 v0.5.1 起均设为 `true`，构建并发布 Windows 和 Linux |
 
 `TAURI_UPDATER_PUBLIC_KEY` 和 `DOWNLOAD_BASE_URL` 是公开配置，也支持存为同名
 Secret，与 mobd 的下载域名读取方式一致。构建和 R2 发布均优先读取 Variable，
