@@ -1,4 +1,4 @@
-import { Folder, MessageSquare, Monitor, Moon, PanelLeft, Plug, Settings, SquarePen, Sun, Usb } from "lucide-react";
+import { Folder, MessageSquare, Monitor, Moon, PanelLeft, Plug, Plus, Settings, SquarePen, Sun, Usb } from "lucide-react";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { StatusIcon } from "@/components/StatusIcon";
@@ -37,6 +37,7 @@ export function CommandPalette({ onConnect }: { onConnect: () => void }) {
               {remote && !needsPairing(machine) && <CommandItem onSelect={run(() => set({ usbOpen: true }))}><Usb /> Share a USB device</CommandItem>}
               <CommandItem onSelect={run(() => set({ theme: "light" }))}><Sun /> Light theme</CommandItem>
               <CommandItem onSelect={run(() => set({ theme: "dark" }))}><Moon /> Dark theme</CommandItem>
+              <CommandItem onSelect={run(() => useApp.getState().openAdd())}><Plus /> Add a computer</CommandItem>
               <CommandItem onSelect={run(() => openSettings())}><Settings /> Settings</CommandItem>
             </CommandGroup>
             {chatState.sessions.length > 0 && (

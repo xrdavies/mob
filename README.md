@@ -55,7 +55,7 @@ src/
 
 ## Configure
 
-Nothing to configure at build time. Machines are added by pasting the pairing link from `mobd link`. Manage machines (name, pairing, live view quality) in **Settings → Machines**, where **Test connection** shows the office readiness checks.
+Nothing to configure at build time. **Add a computer** (sidebar **+**, the welcome screen or the command palette) sets up this computer or pairs another one from the link `mobd link` prints ([details](docs/add-computer.md)). Manage computers (name, addresses, live view quality) in **Settings → Machines**, where **Test connection** shows the office readiness checks.
 
 ## Install & run
 
@@ -85,7 +85,7 @@ Checks: `npm test` (conversation lifecycle, timeline, pairing, SSE, live stream 
 - **View / Control:** the panel only watches. To drive the office computer yourself, expand the view and switch **View | Control**, or press ⌘⇧C; your mouse, keyboard and scroll then go to the office computer, and `Esc` goes there too — switch back to **View** to use `Esc` for collapsing. Collapsing always returns to View. ⌘W and ⌘Q stay with the app. From Windows and Linux, Ctrl acts as ⌘ on the Mac (Ctrl+C copies there) and the Windows/Super key sends Control.
 - **Transport:** WebRTC on the LAN or a tailnet. Where UDP cannot pass (Tailscale Funnel, an HTTPS gateway), the app falls back to mobd's WebSocket after 5 s and remembers that per machine (1 s next time); the readout shows which one is in use.
 - **Auth:** every machine is paired (`mobd link`); the device credential is kept in the Keychain (macOS), Credential Manager (Windows) or the Secret Service keyring (Linux). If the system store is unavailable (e.g. headless Linux without Secret Service), mob falls back to an encrypted file under the app config directory — see [docs/credential-storage.md](docs/credential-storage.md).
-- **Linux paste:** WebKitGTK 2.54.0–2.54.1 can SIGSEGV on native Ctrl+V when the clipboard is empty or one-shot ([WebKit bug 324466](https://bugs.webkit.org/show_bug.cgi?id=324466)). Settings → Machines pairing uses an OS clipboard read (and a **Paste** button) instead of the webview paste path; see [docs/ui.md](docs/ui.md).
+- **Linux paste:** WebKitGTK 2.54.0–2.54.1 can SIGSEGV on native Ctrl+V when the clipboard is empty or one-shot ([WebKit bug 324466](https://bugs.webkit.org/show_bug.cgi?id=324466)). Pairing in **Add a computer** uses an OS clipboard read (and a **Paste** button) instead of the webview paste path; see [docs/ui.md](docs/ui.md).
 
 Features follow mobd's `/health`: queue, uploads, model/effort, steering, session management, snapshots and the live view appear only when mobd reports API v3 and lists the feature.
 

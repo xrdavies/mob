@@ -1,13 +1,11 @@
 import { UpdateSettings } from "@/components/UpdateNotice";
 import { AgentsSection } from "@/components/settings/AgentsSection";
 import { LocalSection } from "@/components/local/LocalSection";
-import { LocalSetup } from "@/components/local/LocalSetup";
 import { Licenses } from "@/components/settings/Licenses";
 import {
   CheckCircle2, CircleHelp, Info, Monitor, Moon, Palette, Pencil, Plus, ScrollText, Sun, SunMoon, Trash2, TriangleAlert, XCircle,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState, type ClipboardEvent, type KeyboardEvent, type ReactNode } from "react";
-import { invoke, isTauri } from "@tauri-apps/api/core";
+import { useEffect, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import { fetchHealth } from "@/api/client";
 import { formatBytes } from "@/lib/desktops";
@@ -21,10 +19,9 @@ import { Input, Label } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip } from "@/components/ui/tooltip";
 import { UnauthorizedError } from "@/lib/auth";
-import { deviceNameError, pair, parsePairLink } from "@/lib/pairing";
 import { getSecretStorageInfo, type SecretStorageInfo } from "@/lib/secrets";
 import { cn } from "@/lib/utils";
-import { addressKind, addressLabel, currentAddress, hasAddress, hostOf, isLocal } from "@/lib/machines";
+import { addressKind, addressLabel, currentAddress, hostOf, isLocal } from "@/lib/machines";
 import { baseUrl, needsPairing, useApp, type Machine, type Theme } from "@/store/app";
 import { log, useLog } from "@/store/log";
 
@@ -59,11 +56,6 @@ export function ChecksList({ checks }: { checks?: Record<string, Check> }) {
   );
 }
 
-const defaultDeviceName = () => {
-  const ua = navigator.userAgent;
-  return `Mob on ${/Mac/i.test(ua) ? "Mac" : /Windows/i.test(ua) ? "Windows" : /Linux/i.test(ua) ? "Linux" : "desktop"}`;
-};
-
 /** Removal could not reach mobd: this device is still in its list there. */
 function warnKept(urls: string[]) {
   if (!urls.length) return;
@@ -82,151 +74,6 @@ function InfoTip({ label, children }: { label: string; children: ReactNode }) {
     </Tooltip>
   );
 }
-
-function InsecureWarning() {
-  return (
-    <p className="flex gap-1.5 rounded-md bg-warning/10 px-2.5 py-1.5 text-[11.5px] text-foreground">
-      <TriangleAlert className="mt-px size-3.5 shrink-0 text-warning" />
-      HTTP link: traffic including the credential is not encrypted. Use it only on a trusted network or a Tailscale/VPN address.
-    </p>
-  );
-}
-
-/** Paste a `mobd link` URL, confirm the target, redeem the invite. Never sends an existing credential. */
-function PairForm({ machine, onPaired }: { machine?: Machine; onPaired: (id: string) => void }) {
-  const completePairing = useApp((s) => s.completePairing);
-  const machines = useApp((s) => s.machines);
-  const [link, setLink] = useState("");
-  const [officeName, setOfficeName] = useState("Office computer");
-  const [deviceName, setDeviceName] = useState(defaultDeviceName);
-  const [confirmed, setConfirmed] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  const parsed = useMemo(() => {
-    if (!link.trim()) return { error: "" };
-    try {
-      return { link: parsePairLink(link) };
-    } catch (err) {
-      return { error: err instanceof Error ? err.message : String(err) };
-    }
-  }, [link]);
-  const target = parsed.link;
-  // The saved machine this pairing goes to: the one being edited, else the saved one of that office.
-  const saved = machine ?? (target && machines.find((m) => m.serverId === target.serverId));
-  const otherOffice = !!saved?.serverId && !!target && target.serverId !== saved.serverId;
-  // Another address of the saved office: pairing adds it to the same machine.
-  const newAddress = !!saved?.serverId && !!target && !otherOffice && !hasAddress(saved, target.origin);
-  const nameError = deviceNameError(deviceName);
-  const ready = !!target && !nameError && (!saved ? !!officeName.trim() : true) && (!otherOffice || confirmed) && !busy;
-
-  useEffect(() => setConfirmed(false), [target?.origin]);
-
-  /** Prefer OS clipboard via Tauri — WebKitGTK 2.54 can SIGSEGV on native Ctrl+V (bug 324466). */
-  const pasteLink = useCallback(async () => {
-    setError("");
-    try {
-      let text = "";
-      if (isTauri()) {
-        text = await invoke<string>("clipboard_read_text");
-      } else if (navigator.clipboard?.readText) {
-        text = await navigator.clipboard.readText();
-      } else {
-        throw new Error("Clipboard is not available in this environment.");
-      }
-      setLink(text.trim());
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    }
-  }, []);
-
-  const onLinkKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
-    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "v") {
-      e.preventDefault();
-      void pasteLink();
-    }
-  };
-
-  const onLinkPaste = (e: ClipboardEvent<HTMLInputElement>) => {
-    // Never let WebKit complete a native paste: Clipboard::formats can SIGSEGV on empty /
-    // one-shot clipboards (WebKitGTK 2.54, bugs.webkit.org/show_bug.cgi?id=324466).
-    // Reading via Tauri/arboard (pasteLink) avoids that path.
-    e.preventDefault();
-    void pasteLink();
-  };
-
-  const submit = async () => {
-    if (!target || !ready) return;
-    setBusy(true);
-    setError("");
-    try {
-      const paired = await pair(target, deviceName);
-      const id = await completePairing({
-        id: saved?.id, name: saved?.name ?? officeName, origin: target.origin, ...paired,
-      });
-      setLink("");
-      onPaired(id);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <div className="grid gap-3">
-      {!saved && (
-        <Label>Display name<Input value={officeName} placeholder="Office computer" onChange={(e) => setOfficeName(e.target.value)} /></Label>
-      )}
-      <Label>
-        Pairing link
-        <div className="flex gap-2">
-          <Input value={link} autoComplete="off" spellCheck={false} placeholder="https://office.example.com/pair#v=1&serverId=…&invite=…"
-            onChange={(e) => { setLink(e.target.value); setError(""); }}
-            onKeyDown={onLinkKeyDown}
-            onPaste={onLinkPaste} />
-          <Button type="button" variant="secondary" className="shrink-0" onClick={() => void pasteLink()}>Paste</Button>
-        </div>
-      </Label>
-      {!target && (
-        <p className="-mt-1.5 text-[11px] text-muted-foreground">
-          Run <code className="font-mono">mobd link</code> on the office computer and paste the link it prints. It uses the remote address
-          set up with <code className="font-mono">mobd remote</code>, else the office network; <code className="font-mono">--lan</code> or{" "}
-          <code className="font-mono">--url ADDRESS</code> picks one. Mob relay — coming soon.
-        </p>
-      )}
-      {parsed.error && <p className="-mt-1.5 text-xs text-danger">{parsed.error}</p>}
-      {target && (
-        <div className="grid grid-cols-1 gap-2 rounded-lg border bg-panel p-3">
-          <p className="text-xs"><span className="text-muted-foreground">Pair with </span><span className="break-all font-mono font-medium">{target.origin}</span></p>
-          {target.insecure && <InsecureWarning />}
-          {saved && newAddress && (
-            <p className="text-[11.5px] text-muted-foreground">
-              Adds this address to {saved.name} as {addressKind(target.origin)}, next to {saved.addresses.map((a) => addressLabel(saved, a)).join(", ")}.
-              Mob uses it from now on; switch with the route chip next to {saved.name} in the sidebar.
-            </p>
-          )}
-          {otherOffice && (
-            <label className="flex items-start gap-2 text-[11.5px]">
-              <input type="checkbox" className="mt-0.5" checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)} />
-              <span className="text-warning">This link belongs to a different office than the one saved as {saved?.name}. Pairing replaces its addresses.</span>
-            </label>
-          )}
-        </div>
-      )}
-      <Label>
-        Name of this device
-        <Input value={deviceName} maxLength={128} onChange={(e) => setDeviceName(e.target.value)} />
-      </Label>
-      <p className="-mt-1.5 text-[11px] text-muted-foreground">Shown in the office computer's list of paired devices.</p>
-      <div className="flex items-center gap-2">
-        <Button disabled={!ready} onClick={() => void submit()}>{busy && <Spinner />} {newAddress ? "Add address" : saved ? "Pair again" : "Pair"}</Button>
-        {target && nameError && <span className="text-xs text-danger">{nameError}</span>}
-      </div>
-      {error && <p className="text-xs text-danger">{error}</p>}
-    </div>
-  );
-}
-
 
 function QualityPicker({ value, onChange }: { value: NonNullable<Machine["liveQuality"]>; onChange: (q: NonNullable<Machine["liveQuality"]>) => void }) {
   const hint = QUALITIES.find((q) => q.value === value)?.hint;
@@ -250,11 +97,10 @@ function QualityPicker({ value, onChange }: { value: NonNullable<Machine["liveQu
 }
 
 function MachineForm({ machine }: { machine: Machine }) {
-  const { saveMachine, setLiveQuality, deleteMachine, selectRoute, removeAddress, set } = useApp();
+  const { saveMachine, setLiveQuality, deleteMachine, selectRoute, removeAddress, set, openAdd } = useApp();
   const [form, setForm] = useState<{ name: string; labels: Record<string, string> }>({ name: "", labels: {} });
   const [test, setTest] = useState<{ state: "idle" | "testing" | "ok" | "error"; health?: Health; error?: string }>({ state: "idle" });
   const [saved, setSaved] = useState("");
-  const [repair, setRepair] = useState(false);
   /** The address whose name is being edited. */
   const [renaming, setRenaming] = useState<string | null>(null);
 
@@ -262,7 +108,6 @@ function MachineForm({ machine }: { machine: Machine }) {
     setForm({ name: machine.name, labels: Object.fromEntries(machine.addresses.map((a) => [a.id, a.label ?? ""])) });
     setTest({ state: "idle" });
     setSaved("");
-    setRepair(false);
   }, [machine.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const runTest = async () => {
@@ -343,10 +188,10 @@ function MachineForm({ machine }: { machine: Machine }) {
             This device has no valid credential for the address in use. Run <code className="font-mono">mobd link</code> on the office computer and paste the new link.
           </p>
         )}
-        {needsPairing(machine) || repair ? (
-          <PairForm machine={machine} onPaired={() => { setRepair(false); setTest({ state: "idle" }); }} />
-        ) : (
-          <Button variant="ghost" size="sm" className="w-fit" onClick={() => setRepair(true)}>Add address or pair again…</Button>
+        {!isLocal(machine) && (
+          <Button variant={needsPairing(machine) ? "secondary" : "ghost"} size="sm" className="w-fit" onClick={() => openAdd(machine.id)}>
+            {needsPairing(machine) ? "Pair again…" : "Add address or pair again…"}
+          </Button>
         )}
       </div>
       {!isLocal(machine) && <QualityPicker value={machine.liveQuality ?? "auto"} onChange={(q) => setLiveQuality(machine.id, q)} />}
@@ -399,7 +244,7 @@ function CredentialStorageNote() {
 }
 
 function MachinesTab() {
-  const { machines, editMachineId, selectMachine, set } = useApp();
+  const { machines, editMachineId, set, openAdd } = useApp();
   const editing = machines.find((m) => m.id === editMachineId);
   return (
     <div className="flex h-full flex-col">
@@ -415,8 +260,8 @@ function MachinesTab() {
               </p>
             </button>
           ))}
-          <Button variant="ghost" size="sm" className="justify-start" onClick={() => set({ editMachineId: "" })}>
-            <Plus className="size-3.5" /> Add machine
+          <Button variant="ghost" size="sm" className="justify-start" onClick={() => openAdd()}>
+            <Plus className="size-3.5" /> Add a computer
           </Button>
         </div>
         {editing ? (
@@ -427,10 +272,9 @@ function MachinesTab() {
             <AgentsSection key={editing.id} machine={editing} />
           </div>
         ) : (
-          <div className="grid min-h-0 min-w-0 flex-1 grid-cols-1 content-start gap-3 overflow-y-auto">
-            {!machines.some(isLocal) && <LocalSetup onDone={(id) => { set({ editMachineId: id }); selectMachine(id); }} />}
-            <h3 className="text-[13px] font-semibold">Add machine</h3>
-            <PairForm onPaired={(id) => { set({ editMachineId: id }); selectMachine(id); }} />
+          <div className="flex min-w-0 flex-1 flex-col items-center justify-center gap-3 text-center">
+            <p className="text-[13px] text-muted-foreground">{machines.length ? "Select a computer to change its settings." : "No computers yet."}</p>
+            <Button onClick={() => openAdd()}><Plus className="size-3.5" /> Add a computer</Button>
           </div>
         )}
       </div>

@@ -25,7 +25,6 @@ function HealthChip({ machine, health, error, queue, refetch }: {
   queue?: Queue;
   refetch: () => void;
 }) {
-  const openSettings = useApp((s) => s.openSettings);
   const unpaired = needsPairing(machine);
   const checks = Object.values(health?.checks ?? {});
   const failing = checks.filter((c) => !c.ok && !c.unknown).length;
@@ -55,7 +54,7 @@ function HealthChip({ machine, health, error, queue, refetch }: {
             <p className="text-xs text-muted-foreground">
               This device needs to be paired again. Run <code className="font-mono">mobd link</code> on the office computer and paste the new link.
             </p>
-            <Button size="sm" className="w-fit" onClick={() => openSettings("machines", machine.id)}>Pair again</Button>
+            <Button size="sm" className="w-fit" onClick={() => useApp.getState().openAdd(machine.id)}>Pair again</Button>
           </div>
         )}
         {error && !unpaired && <p className="text-xs text-danger">mobd is unreachable. Check the URL, network/VPN and MOBD_CORS_ORIGINS on the office computer.</p>}

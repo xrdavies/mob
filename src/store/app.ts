@@ -53,6 +53,10 @@ interface Ephemeral {
   settingsFocus: string | null;
   paletteOpen: boolean;
   filesOpen: boolean;
+  /** The "Add a computer" dialog (docs/add-computer.md). */
+  addOpen: boolean;
+  /** A saved machine to pair again or add an address to; null adds a new computer. */
+  addFor: string | null;
   /** USB devices: share one with the office computer (docs/usb-redirection.md in mobd). */
   usbOpen: boolean;
   fullscreen: boolean;
@@ -93,6 +97,8 @@ interface Actions {
   setTurnPrefs: (key: string, prefs: TurnPrefs) => void;
   clearTurnPrefs: (key: string) => void;
   openSettings: (tab?: SettingsTab, editMachineId?: string | null, focus?: string | null) => void;
+  /** Opens "Add a computer"; with a machine, pairs it again or adds an address to it. */
+  openAdd: (machineId?: string) => void;
 }
 
 export type AppState = Persisted & Ephemeral & Actions;
@@ -140,6 +146,8 @@ export const useApp = create<AppState>()(
       settingsFocus: null,
       paletteOpen: false,
       filesOpen: false,
+      addOpen: false,
+      addFor: null,
       usbOpen: false,
       fullscreen: false,
       liveConnect: 0,
@@ -236,6 +244,7 @@ export const useApp = create<AppState>()(
         const { [key]: _, ...rest } = get().turnPrefs;
         set({ turnPrefs: rest });
       },
+      openAdd: (machineId) => set({ addOpen: true, addFor: machineId ?? null, settingsOpen: false, paletteOpen: false }),
       openSettings: (tab = "machines", editMachineId = null, focus = null) =>
         set({ settingsOpen: true, settingsTab: tab, editMachineId: editMachineId ?? get().activeMachineId, settingsFocus: focus }),
     }),

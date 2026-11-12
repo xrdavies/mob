@@ -278,9 +278,9 @@ function MachineGroup({ machine, active, onHandleAction }: { machine: Machine; a
         </p>
       )}
       {active && unpaired && !other && (
-        <button type="button" onClick={() => openSettings("machines", machine.id)}
+        <button type="button" onClick={() => useApp.getState().openAdd(machine.id)}
           className="px-7 text-left text-[11px] text-muted-foreground/80 hover:text-foreground">
-          Pair again in Settings
+          Pair again…
         </button>
       )}
       {active && !isCollapsed && !unpaired && (
@@ -368,7 +368,7 @@ export function Sidebar() {
         <Button variant="ghost" size="sm" className="flex-1 justify-start" onClick={() => openSettings("machines", null)}>
           <Settings className="size-3.5" /> Settings
         </Button>
-        <Button variant="ghost" size="icon-sm" aria-label="Add machine" onClick={() => useApp.setState({ settingsOpen: true, settingsTab: "machines", editMachineId: "" })}>
+        <Button variant="ghost" size="icon-sm" aria-label="Add a computer" onClick={() => useApp.getState().openAdd()}>
           <Plus />
         </Button>
       </div>

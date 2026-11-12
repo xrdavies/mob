@@ -12,6 +12,8 @@ export interface Pairing {
   serverId: string;
   clientId: string;
   token: string;
+  /** The computer's own name (mobd 0.5.2+), for naming a new machine. */
+  computerName?: string;
 }
 
 export function parsePairLink(text: string): PairLink {
@@ -64,7 +66,7 @@ export async function pair(link: PairLink, name: string): Promise<Pairing> {
   } catch (err) {
     throw new Error(`Could not reach ${link.origin}. Check the network or VPN and that the office computer is awake. (${err instanceof Error ? err.message : String(err)})`);
   }
-  const data = (await res.json().catch(() => ({}))) as Partial<Pairing> & { error?: string; code?: string };
+  const data = (await res.json().catch(() => ({}))) as Partial<Pairing> & { error?: string; code?: string; computerName?: unknown };
   // mobd answers 404 pairing_closed while no invitation is open (used, expired or closed).
   if (res.status === 401 || data.code === "pairing_closed") throw new Error("This pairing link is invalid, expired or already used. Run mobd link on the office computer again.");
   if (res.status === 400) throw new Error(`mobd rejected the pairing request: ${data.error || "invalid request"}.`);
@@ -77,7 +79,8 @@ export async function pair(link: PairLink, name: string): Promise<Pairing> {
   if (data.serverId !== link.serverId) {
     throw new Error("The office computer answered with a different server ID than the link. Check the address and run mobd link again.");
   }
-  return { serverId: data.serverId, clientId: data.clientId, token: data.token };
+  const computerName = typeof data.computerName === "string" ? data.computerName.trim().slice(0, 128) : "";
+  return { serverId: data.serverId, clientId: data.clientId, token: data.token, ...(computerName ? { computerName } : {}) };
 }
 
 export type UnpairResult = "removed" | "unsupported" | "failed";
@@ -101,4 +104,16 @@ export async function unpair(origin: string, token: string, timeoutMs = 5000): P
   } catch {
     return "failed";
   }
+}
+
+/** A name for a machine before mobd tells its own: the address's IP, else its first name label. */
+export function nameFromOrigin(origin: string): string {
+  let host: string;
+  try {
+    host = new URL(origin).hostname.replace(/^\[|\]$/g, "");
+  } catch {
+    return "Office computer";
+  }
+  if (/^[\d.]+$/.test(host) || host.includes(":")) return host;
+  return host.split(".")[0] || "Office computer";
 }

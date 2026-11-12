@@ -7,11 +7,11 @@ import { supports } from "@/api/client";
 import { CommandPalette } from "@/components/CommandPalette";
 import { Composer } from "@/components/composer/Composer";
 import { ActivityPanel, PreviewPanel } from "@/components/preview/PreviewPanel";
-import { LocalSetup } from "@/components/local/LocalSetup";
 import { Spinner } from "@/components/StatusIcon";
 import { isLocal } from "@/lib/machines";
 import { connectLocal } from "@/store/local";
 import { SettingsDialog } from "@/components/settings/SettingsDialog";
+import { AddComputerDialog } from "@/components/add/AddComputerDialog";
 import { Sidebar } from "@/components/sidebar/Sidebar";
 import { Timeline } from "@/components/timeline/Timeline";
 import { TitleBar } from "@/components/TitleBar";
@@ -74,16 +74,11 @@ function NoMachine() {
   const openSettings = useApp((s) => s.openSettings);
   return (
     <div className="flex flex-1 items-center justify-center bg-background">
-      <div className="w-[380px] rounded-2xl border bg-background p-6 text-center shadow-panel">
+      <div className="w-[380px] rounded-2xl border bg-background p-8 text-center shadow-panel">
         <img src="/logo.svg" alt="Mob Screen Buddy" className="mx-auto size-20" />
         <h2 className="mt-3 text-base font-semibold">Welcome to Mob</h2>
-        <div className="mt-4"><LocalSetup /></div>
-        <p className="mt-4 text-[13px] text-muted-foreground">
-          To work with an office computer, run <code className="font-mono">mobd link</code> there and paste the pairing link it prints.
-        </p>
-        <Button variant="secondary" className="mt-3" onClick={() => useApp.setState({ settingsOpen: true, settingsTab: "machines", editMachineId: "" })}>
-          Add machine
-        </Button>
+        <p className="mt-1 text-[13px] text-muted-foreground">Add the computer your agents work on: this one, or an office Mac or Linux machine.</p>
+        <Button className="mt-5" onClick={() => useApp.getState().openAdd()}>Add a computer</Button>
         <Button variant="link" className="mt-1 w-full" onClick={() => openSettings("about")}>What is Mob?</Button>
       </div>
     </div>
@@ -91,7 +86,6 @@ function NoMachine() {
 }
 
 function NeedsPairing({ machine }: { machine: Machine }) {
-  const openSettings = useApp((s) => s.openSettings);
   if (isLocal(machine)) return <ReconnectLocal machine={machine} />;
   return (
     <div className="flex flex-1 flex-col bg-background">
@@ -104,7 +98,7 @@ function NeedsPairing({ machine }: { machine: Machine }) {
             This device has no valid credential for the office computer. Run <code className="font-mono">mobd link</code> there and paste
             the new link. Your conversations stay on the office computer.
           </p>
-          <Button className="mt-4" onClick={() => openSettings("machines", machine.id)}>Pair again</Button>
+          <Button className="mt-4" onClick={() => useApp.getState().openAdd(machine.id)}>Pair again</Button>
         </div>
       </div>
     </div>
@@ -219,6 +213,7 @@ export default function App() {
         </div>
       </div>
       <SettingsDialog />
+      <AddComputerDialog />
       {machine && <FilesDialog machine={machine} health={health.data} open={filesOpen} onOpenChange={(o) => set({ filesOpen: o })} />}
       {machine && !isLocal(machine) && <UsbDialog machine={machine} health={health.data} open={usbOpen} onOpenChange={(o) => set({ usbOpen: o })} />}
       <CommandPalette onConnect={connectLive} />

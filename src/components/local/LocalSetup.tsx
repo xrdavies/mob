@@ -1,5 +1,4 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Laptop } from "lucide-react";
 import { useState } from "react";
 import { Spinner } from "@/components/StatusIcon";
 import { Button } from "@/components/ui/button";
@@ -56,34 +55,28 @@ export function LocalSetup({ onDone }: { onDone?: (id: string) => void }) {
   };
 
   const action = status.running ? "Connect" : fresh ? "Install and set up" : configured ? "Start mobd and connect" : "Set up";
+  const summary = status.running
+    ? "mobd is running here. Connect this app to it to chat with your local agents."
+    : status.binary
+      ? "mobd is installed here but not running. Start it to chat with your local agents."
+      : "Install mobd, the service that runs your agents, to chat with them on this computer. Phones and other computers can pair with it later.";
+  const workdirField = (fresh || (!status.running && !configured)) && (
+    <div className="grid gap-1.5">
+      <Label htmlFor="local-workdir">Agents work in</Label>
+      <Input id="local-workdir" value={dir} spellCheck={false} onChange={(e) => setWorkdir(e.target.value)} className="font-mono text-xs" />
+      <p className="text-[11px] text-muted-foreground">Created if missing. You can change it later in Settings.</p>
+    </div>
+  );
+  const disabled = !!stage || (fresh && !dir.trim().startsWith("/"));
   return (
-    <div className="grid gap-3 rounded-xl border bg-panel p-4 text-left">
-      <div className="flex items-start gap-3">
-        <Laptop className="mt-0.5 size-5 shrink-0 text-muted-foreground" />
-        <div className="min-w-0 space-y-1">
-          <p className="text-[13px] font-semibold">Work with this computer</p>
-          <p className="text-[12px] text-muted-foreground">
-            {status.running
-              ? "mobd is running here. Connect this app to it to chat with your local agents."
-              : status.binary
-                ? "mobd is installed here but not running. Start it to chat with your local agents."
-                : "Install mobd, the service that runs your agents, to chat with them on this computer. Phones and other computers can pair with it later."}
-          </p>
-        </div>
-      </div>
-      {(fresh || (!status.running && !configured)) && (
-        <div className="grid gap-1.5">
-          <Label htmlFor="local-workdir">Agents work in</Label>
-          <Input id="local-workdir" value={dir} spellCheck={false} onChange={(e) => setWorkdir(e.target.value)} className="font-mono text-xs" />
-          <p className="text-[11px] text-muted-foreground">Created if missing. You can change it later in Settings.</p>
-        </div>
-      )}
-      <div className="flex items-center gap-2">
-        <Button disabled={!!stage || (fresh && !dir.trim().startsWith("/"))} onClick={() => void run()}>
-          {stage && <Spinner />} {stage || action}
-        </Button>
-      </div>
+    <div className="grid gap-4 text-left">
+      <p className="text-[12.5px] text-muted-foreground">{summary}</p>
+      {workdirField}
       {error && <p className="text-xs text-danger" role="alert">{error}</p>}
+      <div className="flex items-center justify-end gap-3">
+        {stage && <span className="flex items-center gap-2 text-xs text-muted-foreground"><Spinner /> {stage}…</span>}
+        <Button disabled={disabled} onClick={() => void run()}>{action}</Button>
+      </div>
     </div>
   );
 }

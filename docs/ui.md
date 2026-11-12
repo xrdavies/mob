@@ -133,7 +133,7 @@ Empty session: centered greeting + example prompt cards ("Open a website", "Chec
 
 ### First run / setup
 
-With no machines: a centered card "Connect your office computer" asking for the pairing link printed by `mobd link`. Pairing creates the machine; the health popover then shows the checks. Failed checks are explained in [office-smoke-checklist.md](https://github.com/xrdavies/mobd/blob/main/docs/office-smoke-checklist.md) steps.
+With no machines: a centered "Welcome to Mob" card whose **Add a computer** button opens the dialog described in [add-computer.md](add-computer.md). Pairing creates the machine; the health popover then shows the checks. Failed checks are explained in [office-smoke-checklist.md](https://github.com/xrdavies/mobd/blob/main/docs/office-smoke-checklist.md) steps.
 
 ---
 

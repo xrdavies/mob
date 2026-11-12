@@ -130,3 +130,27 @@ test("unpair removes this device's pairing with its own credential", async () =>
     globalThis.fetch = real;
   }
 });
+
+test("a new machine is named after its address until mobd names it", async () => {
+  const { nameFromOrigin } = await import("./pairing.ts");
+  assert.equal(nameFromOrigin("https://office-mac.tail49e461.ts.net"), "office-mac");
+  assert.equal(nameFromOrigin("http://studio.local:8080"), "studio");
+  assert.equal(nameFromOrigin("http://192.168.1.20:8080"), "192.168.1.20");
+  assert.equal(nameFromOrigin("http://[fd7a:115c::1]:8080"), "fd7a:115c::1");
+  assert.equal(nameFromOrigin("not a url"), "Office computer");
+});
+
+test("pairing returns the computer's name when mobd sends it", async () => {
+  const { pair } = await import("./pairing.ts");
+  const real = globalThis.fetch;
+  const link = { origin: "https://office.example", invite: "i", serverId: "s", insecure: false };
+  const reply = (body) => () => Promise.resolve(new Response(JSON.stringify(body), { status: 201 }));
+  try {
+    globalThis.fetch = reply({ serverId: "s", clientId: "c", token: "t", computerName: "  Office Mac " });
+    assert.equal((await pair(link, "Mob on Mac")).computerName, "Office Mac");
+    globalThis.fetch = reply({ serverId: "s", clientId: "c", token: "t" });
+    assert.equal("computerName" in (await pair(link, "Mob on Mac")), false);
+  } finally {
+    globalThis.fetch = real;
+  }
+});
