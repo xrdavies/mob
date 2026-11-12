@@ -21,11 +21,14 @@ like adding a computer.
 - **Choose:** "This computer" or "Another computer" (the first only while this computer is not added).
 - **Another computer:** run `mobd link` there, paste the link. A link already on the clipboard is used at once.
 - **Confirm:** what is about to be paired: name (editable), address, LAN or Remote, HTTPS or not.
-- **Done:** "Open" or "Add another".
+- Pairing closes the dialog and opens the new computer, with a short "… is ready" notice.
+
+The welcome screen starts with this computer: **Start with this computer** connects at once when mobd already
+runs here, else opens the setup step; **Add another computer** opens the link step.
 
 ### User stories
 
-1. I install Mob and the welcome screen has one button, **Add a computer**.
+1. I install Mob and the welcome screen offers **Start with this computer**; one click when mobd already runs here.
 2. I run `mobd link` on the office Mac, copy the link, open the dialog, and it goes straight to the confirmation.
 3. The new computer is named as it is called (macOS "Office Mac"), not "Office computer".
 4. I pair a computer again, or add its Tailscale address, from the same dialog.
@@ -78,7 +81,19 @@ Silicon, Linux; see mobd [docs/mob-desktop-local-mobd.md](https://github.com/xrd
 - **Reason:** `GET /pair` needs no credential and answers anyone who can reach mobd while an invitation is open,
   possibly over a public Funnel address. Only a device holding the invite should learn the name.
 
-### D5. Flags and the relay note leave the main view
+### D5. The welcome screen starts with this computer
+
+- **Options:** (a) one "Add a computer" button; (b) **Start with this computer** first, other computers as a link.
+- **Choice:** (b), where Desktop can set up mobd (else "Add a computer").
+- **Reason:** most people start with the computer in front of them. Connecting to a running mobd changes nothing on
+  the computer, so it happens on that click; installing or starting mobd shows the setup step first.
+
+### D6. No "done" screen
+
+- **Choice:** pairing closes the dialog and opens the computer; no "Open" / "Add another" screen.
+- **Reason:** one more click with nothing to decide. Another computer is one **+** away.
+
+### D7. Flags and the relay note leave the main view
 
 - **Choice:** `--lan` / `--url` behind "Other addresses"; the "Mob relay — coming soon" note removed.
 - **Reason:** most people pair with the default address; a note about something unavailable is noise.
@@ -88,14 +103,13 @@ Silicon, Linux; see mobd [docs/mob-desktop-local-mobd.md](https://github.com/xrd
 | Step | Shown | Next |
 | --- | --- | --- |
 | Choose | Two cards: This computer, Another computer | Local or Link |
-| Local | Setup from `LocalSetup`: status line, working directory for a new install, one button, progress beside it | Done |
+| Local | "Start with this computer": one status line, the working directory for a new install, Cancel and one button (Connect / Start / Install and start) that shows the progress | Closes, opens the computer |
 | Link | 1 · `mobd link` with Copy; 2 · link field with Paste; "No mobd there yet? Install it", "Other addresses" | Confirm (valid link) |
-| Confirm | Card: name (click to rename), host · LAN/Remote · HTTPS or "not encrypted"; a note for a new address of a saved computer; a checkbox when the link is for another computer than the one being paired again; "Shown there as …" | Done |
-| Done | "<name> is ready", Open, Add another | — |
+| Confirm | Card: name (click to rename), host · LAN/Remote · HTTPS or "not encrypted"; a note for a new address of a saved computer; a checkbox when the link is for another computer than the one being paired again; "Shown there as …" | Closes, opens the computer |
 
-- **State:** `addOpen` and `addFor` (a saved machine to pair again) in the app store; `openAdd(machineId?)` closes
-  Settings and the palette and opens the dialog. Each opening starts at Choose (or Link when this computer is
-  added, unsupported, or a machine is being paired again).
+- **State:** `addOpen`, `addFor` (a saved machine to pair again) and `addStart` in the app store;
+  `openAdd(machineId?, start?)` closes Settings and the palette and opens the dialog. It starts at `start` (the
+  welcome screen), else Choose, or Link when this computer is added, unsupported, or a machine is paired again.
 - **Clipboard:** read through Tauri (`clipboard_read_text`); a native paste in the field is prevented, as before
   (WebKitGTK 2.54 crash, [ui.md](ui.md)).
 - **Pairing:** `pair()` returns `computerName` when mobd sends one (trimmed, at most 128 characters);
@@ -107,7 +121,7 @@ Silicon, Linux; see mobd [docs/mob-desktop-local-mobd.md](https://github.com/xrd
 
 ### Acceptance
 
-1. Welcome screen: one "Add a computer" button; the dialog opens on Choose (or Link where this computer can't be set up).
+1. Welcome screen: **Start with this computer** connects at once to a running mobd, else opens its setup; **Add another computer** opens the link step. Where this computer can't be set up, one "Add a computer" button.
 2. A pairing link on the clipboard when the dialog opens goes straight to Confirm; Back stays on Link.
 3. Pasting, dropping or Enter with a valid link goes to Confirm; an invalid one shows why under the field.
 4. A new computer paired with mobd 0.5.2+ is named by its computer name unless renamed on Confirm; with older mobd, by its address.

@@ -1,6 +1,7 @@
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { ArrowLeft, Check, ChevronRight, ClipboardPaste, Copy, Laptop, Lock, Monitor, Pencil, TriangleAlert } from "lucide-react";
-import { useEffect, useMemo, useRef, useState, type ClipboardEvent, type DragEvent, type KeyboardEvent, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ClipboardEvent, type DragEvent, type KeyboardEvent, type ReactNode } from "react";
+import { toast } from "sonner";
 import { Spinner } from "@/components/StatusIcon";
 import { LocalSetup, useLocalStatus } from "@/components/local/LocalSetup";
 import { Button } from "@/components/ui/button";
@@ -11,7 +12,7 @@ import { deviceNameError, nameFromOrigin, pair, parsePairLink, type PairLink } f
 import { cn } from "@/lib/utils";
 import { useApp, type Machine } from "@/store/app";
 
-type Step = "choose" | "link" | "confirm" | "local" | "done";
+type Step = "choose" | "link" | "confirm" | "local";
 
 const defaultDeviceName = () => {
   const ua = navigator.userAgent;
@@ -250,32 +251,17 @@ function ConfirmStep({ link, machine, onBack, onPaired }: {
   );
 }
 
-function DoneStep({ machine, onOpen, onAnother }: { machine?: Machine; onOpen: () => void; onAnother: () => void }) {
-  return (
-    <div className="grid justify-items-center gap-4 py-4 text-center">
-      <span className="flex size-12 items-center justify-center rounded-full bg-success/15 text-success"><Check className="size-6" /></span>
-      <div className="grid gap-1">
-        <DialogTitle className="text-[15px]">{machine ? `${machine.name} is ready` : "Paired"}</DialogTitle>
-        <DialogDescription className="text-[12.5px]">Start a chat to put its agents to work.</DialogDescription>
-      </div>
-      <div className="flex gap-2">
-        <Button variant="ghost" onClick={onAnother}>Add another</Button>
-        <Button autoFocus onClick={onOpen}>Open</Button>
-      </div>
-    </div>
-  );
-}
-
 /** "Add a computer" (docs/add-computer.md): this computer, or another one by its `mobd link`. */
 export function AddComputerDialog() {
-  const { addOpen, addFor, machines, set, selectMachine } = useApp();
+  const { addOpen, addFor, addStart, machines, set, selectMachine } = useApp();
   const target = machines.find((m) => m.id === addFor);
   const { data: local } = useLocalStatus();
   const offerLocal = !target && !!local?.supported && !machines.some(isLocal);
-  const first: Step = offerLocal ? "choose" : "link";
+  const first: Step = addStart ?? (offerLocal ? "choose" : "link");
+  // Back to Choose only when the dialog started there.
+  const fromChoose = first === "choose";
   const [step, setStep] = useState<Step>(first);
   const [link, setLink] = useState<PairLink | null>(null);
-  const [paired, setPaired] = useState<string | null>(null);
   const clipboardChecked = useRef(false);
   const checkClipboard = () => !clipboardChecked.current && (clipboardChecked.current = true);
   // Each opening starts over.
@@ -284,16 +270,17 @@ export function AddComputerDialog() {
     if (addOpen && !opened.current) {
       setStep(first);
       setLink(null);
-      setPaired(null);
       clipboardChecked.current = false;
     }
     opened.current = addOpen;
   }, [addOpen, first]);
-  const pairedMachine = useMemo(() => machines.find((m) => m.id === paired), [machines, paired]);
-  const close = () => set({ addOpen: false, addFor: null });
+  const close = () => set({ addOpen: false, addFor: null, addStart: null });
+  // Straight into the computer: it is listed, selected and ready for a chat.
   const done = (id: string) => {
-    setPaired(id);
-    setStep("done");
+    const name = useApp.getState().machines.find((m) => m.id === id)?.name;
+    selectMachine(id);
+    close();
+    if (name) toast.success(`${name} is ready`);
   };
 
   return (
@@ -309,22 +296,17 @@ export function AddComputerDialog() {
           </div>
         )}
         {step === "local" && (
-          <div className="grid gap-5">
-            <Header title="This computer" description="Mob runs your agents here through mobd, the same service office computers use." onBack={() => setStep("choose")} />
-            <LocalSetup onDone={done} />
+          <div className="grid gap-4">
+            <Header title="Start with this computer" onBack={fromChoose ? () => setStep("choose") : undefined} />
+            <LocalSetup onDone={done} onCancel={close} />
           </div>
         )}
         {step === "link" && (
-          <LinkStep machine={target} checkClipboard={checkClipboard} onBack={offerLocal ? () => setStep("choose") : undefined}
+          <LinkStep machine={target} checkClipboard={checkClipboard} onBack={fromChoose ? () => setStep("choose") : undefined}
             onLink={(l) => { setLink(l); setStep("confirm"); }} />
         )}
         {step === "confirm" && link && (
           <ConfirmStep link={link} machine={target} onBack={() => setStep("link")} onPaired={done} />
-        )}
-        {step === "done" && (
-          <DoneStep machine={pairedMachine}
-            onOpen={() => { if (paired) selectMachine(paired); close(); }}
-            onAnother={() => { set({ addFor: null }); setLink(null); setPaired(null); setStep(machines.some(isLocal) || !local?.supported ? "link" : "choose"); }} />
         )}
       </DialogContent>
     </Dialog>

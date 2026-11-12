@@ -33,7 +33,7 @@ export function CommandPalette({ onConnect }: { onConnect: () => void }) {
               {remote && <CommandItem onSelect={run(() => stream.disconnect())}><Plug /> Disconnect live view</CommandItem>}
               <CommandItem onSelect={run(() => set({ sidebarOpen: !sidebarOpen }))}><PanelLeft /> Toggle sidebar</CommandItem>
               <CommandItem onSelect={run(() => useApp.getState().togglePreview())}><Monitor /> {remote ? (previewOpen ? "Hide desktop" : "Show desktop") : previewOpen ? "Hide activity" : "Show activity"}</CommandItem>
-              {machine && !needsPairing(machine) && <CommandItem onSelect={run(() => set({ filesOpen: true }))}><Folder /> Open Files</CommandItem>}
+              {remote && !needsPairing(machine) && <CommandItem onSelect={run(() => set({ filesOpen: true }))}><Folder /> Open Files</CommandItem>}
               {remote && !needsPairing(machine) && <CommandItem onSelect={run(() => set({ usbOpen: true }))}><Usb /> Share a USB device</CommandItem>}
               <CommandItem onSelect={run(() => set({ theme: "light" }))}><Sun /> Light theme</CommandItem>
               <CommandItem onSelect={run(() => set({ theme: "dark" }))}><Moon /> Dark theme</CommandItem>

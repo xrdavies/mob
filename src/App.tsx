@@ -12,6 +12,7 @@ import { isLocal } from "@/lib/machines";
 import { connectLocal } from "@/store/local";
 import { SettingsDialog } from "@/components/settings/SettingsDialog";
 import { AddComputerDialog } from "@/components/add/AddComputerDialog";
+import { useLocalStatus } from "@/components/local/LocalSetup";
 import { Sidebar } from "@/components/sidebar/Sidebar";
 import { Timeline } from "@/components/timeline/Timeline";
 import { TitleBar } from "@/components/TitleBar";
@@ -72,14 +73,36 @@ function ReconnectLocal({ machine }: { machine: Machine }) {
 
 function NoMachine() {
   const openSettings = useApp((s) => s.openSettings);
+  const { data: local, isLoading } = useLocalStatus();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  // mobd already running here: connecting changes nothing on the computer, so do it right here.
+  // Installing or starting it goes through the setup step, which says what will happen.
+  const start = () => {
+    if (!local?.running) return useApp.getState().openAdd(undefined, "local");
+    setBusy(true);
+    setError("");
+    connectLocal().catch((err) => setError(err instanceof Error ? err.message : String(err))).finally(() => setBusy(false));
+  };
   return (
     <div className="flex flex-1 items-center justify-center bg-background">
       <div className="w-[380px] rounded-2xl border bg-background p-8 text-center shadow-panel">
         <img src="/logo.svg" alt="Mob Screen Buddy" className="mx-auto size-20" />
         <h2 className="mt-3 text-base font-semibold">Welcome to Mob</h2>
-        <p className="mt-1 text-[13px] text-muted-foreground">Add the computer your agents work on: this one, or an office Mac or Linux machine.</p>
-        <Button className="mt-5" onClick={() => useApp.getState().openAdd()}>Add a computer</Button>
-        <Button variant="link" className="mt-1 w-full" onClick={() => openSettings("about")}>What is Mob?</Button>
+        {local?.supported ? (
+          <>
+            <p className="mt-1 text-[13px] text-muted-foreground">Chat with AI agents that work on this computer.</p>
+            <Button className="mt-5" disabled={busy || isLoading} onClick={start}>{busy && <Spinner />} Start with this computer</Button>
+            {error && <p className="mt-2 text-xs text-danger" role="alert">{error}</p>}
+            <Button variant="link" className="mt-1 w-full" onClick={() => useApp.getState().openAdd(undefined, "link")}>Add another computer</Button>
+          </>
+        ) : (
+          <>
+            <p className="mt-1 text-[13px] text-muted-foreground">Add the office Mac or Linux machine your agents work on.</p>
+            <Button className="mt-5" disabled={isLoading} onClick={() => useApp.getState().openAdd(undefined, "link")}>Add a computer</Button>
+          </>
+        )}
+        <Button variant="link" className="w-full text-muted-foreground" onClick={() => openSettings("about")}>What is Mob?</Button>
       </div>
     </div>
   );
@@ -214,7 +237,7 @@ export default function App() {
       </div>
       <SettingsDialog />
       <AddComputerDialog />
-      {machine && <FilesDialog machine={machine} health={health.data} open={filesOpen} onOpenChange={(o) => set({ filesOpen: o })} />}
+      {machine && !isLocal(machine) && <FilesDialog machine={machine} health={health.data} open={filesOpen} onOpenChange={(o) => set({ filesOpen: o })} />}
       {machine && !isLocal(machine) && <UsbDialog machine={machine} health={health.data} open={usbOpen} onOpenChange={(o) => set({ usbOpen: o })} />}
       <CommandPalette onConnect={connectLive} />
       <Toaster theme={dark ? "dark" : "light"} position="bottom-center" />

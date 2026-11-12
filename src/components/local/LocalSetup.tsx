@@ -14,7 +14,7 @@ export function useLocalStatus() {
  * this Desktop with it (mobd docs/mob-desktop-local-mobd.md). An existing mobd is used as it is.
  * Renders nothing where Desktop cannot run a local mobd.
  */
-export function LocalSetup({ onDone }: { onDone?: (id: string) => void }) {
+export function LocalSetup({ onDone, onCancel }: { onDone?: (id: string) => void; onCancel?: () => void }) {
   const qc = useQueryClient();
   const { data: status, isLoading } = useLocalStatus();
   const [workdir, setWorkdir] = useState<string | null>(null);
@@ -54,17 +54,17 @@ export function LocalSetup({ onDone }: { onDone?: (id: string) => void }) {
     }
   };
 
-  const action = status.running ? "Connect" : fresh ? "Install and set up" : configured ? "Start mobd and connect" : "Set up";
+  const action = status.running ? "Connect" : fresh ? "Install and start" : "Start";
   const summary = status.running
-    ? "mobd is running here. Connect this app to it to chat with your local agents."
+    ? "mobd, the service that runs your agents, is already running here."
     : status.binary
-      ? "mobd is installed here but not running. Start it to chat with your local agents."
-      : "Install mobd, the service that runs your agents, to chat with them on this computer. Phones and other computers can pair with it later.";
+      ? "mobd, the service that runs your agents, is installed here but stopped."
+      : "Mob installs mobd, the service that runs your agents on this computer.";
   const workdirField = (fresh || (!status.running && !configured)) && (
     <div className="grid gap-1.5">
       <Label htmlFor="local-workdir">Agents work in</Label>
       <Input id="local-workdir" value={dir} spellCheck={false} onChange={(e) => setWorkdir(e.target.value)} className="font-mono text-xs" />
-      <p className="text-[11px] text-muted-foreground">Created if missing. You can change it later in Settings.</p>
+      <p className="text-[11px] text-muted-foreground">Created if missing; you can change it later.</p>
     </div>
   );
   const disabled = !!stage || (fresh && !dir.trim().startsWith("/"));
@@ -73,9 +73,9 @@ export function LocalSetup({ onDone }: { onDone?: (id: string) => void }) {
       <p className="text-[12.5px] text-muted-foreground">{summary}</p>
       {workdirField}
       {error && <p className="text-xs text-danger" role="alert">{error}</p>}
-      <div className="flex items-center justify-end gap-3">
-        {stage && <span className="flex items-center gap-2 text-xs text-muted-foreground"><Spinner /> {stage}…</span>}
-        <Button disabled={disabled} onClick={() => void run()}>{action}</Button>
+      <div className="flex items-center justify-end gap-2">
+        {onCancel && !stage && <Button variant="ghost" onClick={onCancel}>Cancel</Button>}
+        <Button autoFocus disabled={disabled} onClick={() => void run()}>{stage ? <><Spinner /> {stage}…</> : action}</Button>
       </div>
     </div>
   );

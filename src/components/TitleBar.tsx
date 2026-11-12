@@ -103,7 +103,8 @@ export function TitleBar(props: {
         </Button>
       </Tooltip>
       {/* The shared folder belongs to the machine, not to a conversation. */}
-      {props.machine && !needsPairing(props.machine) && (
+      {/* Not for this computer: its folders are right here. */}
+      {props.machine && !needsPairing(props.machine) && !isLocal(props.machine) && (
         <Tooltip content="Move files to and from the office computer">
           <Button variant="ghost" size="sm" onClick={() => set({ filesOpen: true })} className="h-7 gap-1.5 px-2.5">
             <Folder className="size-3.5" /> Files
