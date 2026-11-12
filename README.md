@@ -12,6 +12,8 @@ Desktop **mob** client: dispatch tasks to the office agent, follow what it does 
 
 Design: [docs/ui.md](docs/ui.md) · Live view: [docs/desktop-streaming.md](docs/desktop-streaming.md) · Stack decision: [ADR 0009](docs/adr/0009-app-frontend-react.md) · API: [docs/mobd-v3.md](https://github.com/xrdavies/mobd/blob/main/docs/mobd-v3.md)
 
+Planned, not implemented: [working with this computer](https://github.com/xrdavies/mobd/blob/main/docs/mob-desktop-local-mobd.md), where Desktop installs and manages the standard mobd so it works with local agents by default and pairs phones with this computer.
+
 Planned, not implemented: [USB redirection](docs/usb-redirection.md), sharing selected local hardware with mobd through open-source USB/IP backends. The draft includes platform limits and links to mobd's Apple entitlement application.
 
 The [agent collaboration draft](docs/agent-collaboration.md) defines Desktop's
