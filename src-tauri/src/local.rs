@@ -378,7 +378,7 @@ mod imp {
                 (path.starts_with("/clients/") && path.ends_with("/revoke") && path.matches('/').count() == 3)
                     || (path.starts_with("/permissions/") && path.matches('/').count() == 2)
             }
-            "DELETE" => path == "/invitations",
+            "DELETE" => path == "/invitations" || (path.starts_with("/clients/") && path.matches('/').count() == 2),
             _ => false,
         };
         if !ok {

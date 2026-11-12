@@ -107,3 +107,26 @@ test("responseError prefers mobd's message over the status", async () => {
   assert.equal(await responseError(new Response("<html>", { status: 502 })), "HTTP 502");
   assert.equal(await responseError(new Response(JSON.stringify({ error: "" }), { status: 500 })), "HTTP 500");
 });
+
+test("unpair removes this device's pairing with its own credential", async () => {
+  const { unpair } = await import("./pairing.ts");
+  const real = globalThis.fetch;
+  const calls = [];
+  const answer = (status) => (url, init) => {
+    calls.push({ url, method: init.method, auth: init.headers.Authorization });
+    return Promise.resolve(new Response(null, { status }));
+  };
+  try {
+    globalThis.fetch = answer(204);
+    assert.equal(await unpair("http://127.0.0.1:8080/", "tok"), "removed");
+    assert.deepEqual(calls[0], { url: "http://127.0.0.1:8080/pair", method: "DELETE", auth: "Bearer tok" });
+    for (const [status, want] of [[401, "removed"], [404, "removed"], [405, "unsupported"], [500, "failed"]]) {
+      globalThis.fetch = answer(status);
+      assert.equal(await unpair("https://office.example", "tok"), want, String(status));
+    }
+    globalThis.fetch = () => Promise.reject(new TypeError("offline"));
+    assert.equal(await unpair("https://office.example", "tok"), "failed");
+  } finally {
+    globalThis.fetch = real;
+  }
+});

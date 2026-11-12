@@ -79,3 +79,26 @@ export async function pair(link: PairLink, name: string): Promise<Pairing> {
   }
   return { serverId: data.serverId, clientId: data.clientId, token: data.token };
 }
+
+export type UnpairResult = "removed" | "unsupported" | "failed";
+
+/**
+ * Removes this device's pairing at `origin` with its own credential (mobd's DELETE /pair), so it
+ * leaves the machine's device list. "unsupported": a mobd without the unpair feature.
+ */
+export async function unpair(origin: string, token: string, timeoutMs = 5000): Promise<UnpairResult> {
+  try {
+    const res = await fetch(`${origin.replace(/\/$/, "")}/pair`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}` },
+      redirect: "error",
+      cache: "no-store",
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+    // 401: the credential no longer works there, so nothing is left to remove.
+    if (res.ok || res.status === 401 || res.status === 404) return "removed";
+    return res.status === 405 ? "unsupported" : "failed";
+  } catch {
+    return "failed";
+  }
+}

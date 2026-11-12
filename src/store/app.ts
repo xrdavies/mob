@@ -1,8 +1,10 @@
+import { invoke, isTauri } from "@tauri-apps/api/core";
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import { configureAuth } from "@/lib/auth";
-import { currentAddress, markLocal, pairMachine, withAddresses, type Machine } from "@/lib/machines";
+import { currentAddress, markLocal, pairMachine, withAddresses, type Machine, type MachineAddress } from "@/lib/machines";
 import { historyStore } from "@/lib/historyStore";
+import { unpair } from "@/lib/pairing";
 import { deleteSecret, getSecret, loadSecrets, setSecret, tokenAccount } from "@/lib/secrets";
 import { uid } from "@/lib/utils";
 import { log } from "@/store/log";
@@ -78,9 +80,13 @@ interface Actions {
   markNeedsPairing: (id: string, addressId?: string) => void;
   /** Uses another of the machine's addresses; the app never switches by itself. */
   selectRoute: (id: string, addressId: string) => void;
-  /** Removes one address from this device; the machine goes with its last one. */
-  removeAddress: (id: string, addressId: string) => void;
-  deleteMachine: (id: string) => void;
+  /**
+   * Removes one address from this device, and this device's pairing there; the machine goes with
+   * its last one. Resolves to the addresses whose pairing mobd could not remove.
+   */
+  removeAddress: (id: string, addressId: string) => Promise<string[]>;
+  /** Removes the machine, and this device's pairing at each of its addresses (see removeAddress). */
+  deleteMachine: (id: string) => Promise<string[]>;
   /** Marks the machine as this computer (mobd docs/mob-desktop-local-mobd.md) and lists it first. */
   setLocal: (id: string) => void;
   rememberSession: (machineId: string, sessionId: string | null) => void;
@@ -189,28 +195,35 @@ export const useApp = create<AppState>()(
         log(`${machine.name}: using ${address.url}`);
         set({ machines: get().machines.map((m) => (m.id === id ? { ...m, route: addressId } : m)) });
       },
-      removeAddress: (id, addressId) => {
+      removeAddress: async (id, addressId) => {
         const machine = get().machines.find((m) => m.id === id);
-        if (!machine) return;
+        const address = machine?.addresses.find((a) => a.id === addressId);
+        if (!machine || !address) return [];
         if (machine.addresses.length < 2) return get().deleteMachine(id);
+        const pending = unpairAddresses(machine, [address]);
         deleteSecret(tokenAccount(addressId)).catch((err) => log(`keychain delete failed: ${String(err)}`, "error"));
         set({
           machines: get().machines.map((m) => m.id !== id ? m : {
             ...m, addresses: m.addresses.filter((a) => a.id !== addressId), route: m.route === addressId ? undefined : m.route,
           }),
         });
+        return pending;
       },
-      deleteMachine: (id) => {
+      deleteMachine: async (id) => {
         const machine = get().machines.find((m) => m.id === id);
-        for (const a of machine?.addresses ?? []) {
+        if (!machine) return [];
+        // The credentials are read now; the app forgets the machine without waiting for mobd.
+        const pending = unpairAddresses(machine, machine.addresses);
+        for (const a of machine.addresses) {
           deleteSecret(tokenAccount(a.id)).catch((err) => log(`keychain delete failed: ${String(err)}`, "error"));
         }
-        if (machine) forgetHistory(machine);
+        forgetHistory(machine);
         const machines = get().machines.filter((m) => m.id !== id);
         const savedSessions = { ...get().savedSessions };
         delete savedSessions[id];
         const activeMachineId = get().activeMachineId === id ? machines[0]?.id ?? null : get().activeMachineId;
         set({ machines, savedSessions, activeMachineId });
+        return pending;
       },
       setLocal: (id) => set({ machines: markLocal(get().machines, id) }),
       rememberSession: (machineId, sessionId) => {
@@ -260,6 +273,28 @@ export async function loadMachineSecrets(): Promise<void> {
   });
 }
 
+
+/**
+ * Removes this device's pairing at each address that still has a credential, so the device leaves
+ * mobd's list. This computer falls back to its management socket (also for a mobd without
+ * DELETE /pair). Returns the addresses where it stayed; the app forgets them anyway.
+ */
+function unpairAddresses(m: Machine, addresses: MachineAddress[]): Promise<string[]> {
+  const targets = addresses.flatMap((a) => {
+    const token = !a.needsPairing && getSecret(tokenAccount(a.id));
+    return token ? [{ a, token }] : [];
+  });
+  return Promise.all(targets.map(async ({ a, token }) => {
+    let result = await unpair(a.url, token);
+    if (result !== "removed" && m.local && a.clientId && isTauri()) {
+      result = await invoke("local_control", { method: "DELETE", path: `/clients/${encodeURIComponent(a.clientId)}` })
+        .then(() => "removed" as const, () => result);
+    }
+    if (result === "removed") log(`${m.name}: removed this device's pairing at ${a.url}`);
+    else log(`${m.name}: could not remove this device's pairing at ${a.url} (${result === "unsupported" ? "mobd too old" : "unreachable"})`, "error");
+    return result === "removed" ? [] : [a.url];
+  })).then((r) => r.flat());
+}
 
 /** Deletes the machine's local copy of conversations (keyed like Chat.setMachine). */
 function forgetHistory(m: Machine): void {

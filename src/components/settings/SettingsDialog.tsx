@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState, type ClipboardEvent, type KeyboardEvent, type ReactNode } from "react";
 import { invoke, isTauri } from "@tauri-apps/api/core";
+import { toast } from "sonner";
 import { fetchHealth } from "@/api/client";
 import { formatBytes } from "@/lib/desktops";
 import { historyStore } from "@/lib/historyStore";
@@ -23,7 +24,7 @@ import { UnauthorizedError } from "@/lib/auth";
 import { deviceNameError, pair, parsePairLink } from "@/lib/pairing";
 import { getSecretStorageInfo, type SecretStorageInfo } from "@/lib/secrets";
 import { cn } from "@/lib/utils";
-import { addressKind, addressLabel, currentAddress, hasAddress, isLocal } from "@/lib/machines";
+import { addressKind, addressLabel, currentAddress, hasAddress, hostOf, isLocal } from "@/lib/machines";
 import { baseUrl, needsPairing, useApp, type Machine, type Theme } from "@/store/app";
 import { log, useLog } from "@/store/log";
 
@@ -62,6 +63,14 @@ const defaultDeviceName = () => {
   const ua = navigator.userAgent;
   return `Mob on ${/Mac/i.test(ua) ? "Mac" : /Windows/i.test(ua) ? "Windows" : /Linux/i.test(ua) ? "Linux" : "desktop"}`;
 };
+
+/** Removal could not reach mobd: this device is still in its list there. */
+function warnKept(urls: string[]) {
+  if (!urls.length) return;
+  toast.warning(`Removed here, but ${urls.map(hostOf).join(", ")} still lists this device`, {
+    description: "Remove it there with mobd clients delete, or from Mob on that computer.",
+  });
+}
 
 /** A help icon that explains on hover or focus, instead of a paragraph on the page. */
 function InfoTip({ label, children }: { label: string; children: ReactNode }) {
@@ -321,7 +330,7 @@ function MachineForm({ machine }: { machine: Machine }) {
                   : <Button variant="ghost" size="sm" className="-my-1 shrink-0" onClick={() => selectRoute(machine.id, a.id)}>Use</Button>}
                 {machine.addresses.length > 1 && (
                   <Button variant="ghost" size="icon-sm" aria-label={`Remove ${addressLabel(machine, a)}`} className="shrink-0 text-danger hover:text-danger"
-                    onClick={() => removeAddress(machine.id, a.id)}>
+                    onClick={() => void removeAddress(machine.id, a.id).then(warnKept)}>
                     <Trash2 className="size-3.5" />
                   </Button>
                 )}
@@ -348,7 +357,7 @@ function MachineForm({ machine }: { machine: Machine }) {
         </Button>
         {saved && <span className={cn("text-xs", saved === "Saved" ? "text-success" : "text-danger")}>{saved}</span>}
         <div className="flex-1" />
-        <Button variant="ghost" className="text-danger hover:text-danger" onClick={() => { deleteMachine(machine.id); set({ editMachineId: "" }); }}>
+        <Button variant="ghost" className="text-danger hover:text-danger" onClick={() => { void deleteMachine(machine.id).then(warnKept); set({ editMachineId: "" }); }}>
           <Trash2 className="size-3.5" /> Remove
         </Button>
       </div>
