@@ -624,11 +624,31 @@ mod imp {
         mobd(&["start", "--login"], Some(&workdir))
     }
 
+    /// Where start and restart run. Without `workdir` in the config, mobd works in the directory
+    /// it is started from; Desktop's own would be `/`. So: the configured one, else the one the
+    /// service last used (service.json), else home.
+    pub fn service_cwd() -> Result<PathBuf, String> {
+        let dir = mobd_dir()?;
+        for file in ["config.json", "service.json"] {
+            let workdir = std::fs::read_to_string(dir.join(file))
+                .ok()
+                .and_then(|t| serde_json::from_str::<Value>(&t).ok())
+                .and_then(|v| v.get("workdir").and_then(Value::as_str).map(PathBuf::from))
+                .filter(|p| p.is_absolute() && p.is_dir());
+            if let Some(w) = workdir {
+                return Ok(w);
+            }
+        }
+        home()
+    }
+
     pub fn service(action: &str, login: bool) -> Result<String, String> {
+        let cwd = service_cwd()?;
         match (action, login) {
-            ("start", true) => mobd(&["start", "--login"], None),
-            ("restart", true) => mobd(&["restart", "--login"], None),
-            ("start", false) | ("stop", _) | ("restart", false) => mobd(&[action], None),
+            ("start", true) => mobd(&["start", "--login"], Some(&cwd)),
+            ("restart", true) => mobd(&["restart", "--login"], Some(&cwd)),
+            ("start", false) | ("restart", false) => mobd(&[action], Some(&cwd)),
+            ("stop", _) => mobd(&["stop"], None),
             _ => Err(format!("unknown service action {action}")),
         }
     }
@@ -790,6 +810,7 @@ mod live {
     #[ignore]
     fn reads_the_running_mobd() {
         let s = super::imp::status().unwrap();
+        println!("service cwd={:?}", super::imp::service_cwd());
         println!("supported={} running={} binary={:?}", s.supported, s.running, s.binary);
         println!("health={}", s.health.map(|h| h.to_string()).unwrap_or_default());
         println!("path={}", s.path);
