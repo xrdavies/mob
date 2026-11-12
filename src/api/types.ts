@@ -255,6 +255,8 @@ export interface Health {
   ok: boolean;
   service: string;
   apiVersion: number;
+  /** Agents' desktop tools and live view control in progress (feature screenUse). */
+  screenUse?: unknown[];
   /** Default runner for new conversations. */
   runner?: string;
   runners?: RunnerInfo[];

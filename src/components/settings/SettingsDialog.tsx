@@ -1,5 +1,7 @@
 import { UpdateSettings } from "@/components/UpdateNotice";
 import { AgentsSection } from "@/components/settings/AgentsSection";
+import { LocalSection } from "@/components/local/LocalSection";
+import { LocalSetup } from "@/components/local/LocalSetup";
 import { Licenses } from "@/components/settings/Licenses";
 import {
   CheckCircle2, CircleHelp, Info, Monitor, Moon, Palette, Pencil, Plus, ScrollText, Sun, SunMoon, Trash2, TriangleAlert, XCircle,
@@ -21,7 +23,7 @@ import { UnauthorizedError } from "@/lib/auth";
 import { deviceNameError, pair, parsePairLink } from "@/lib/pairing";
 import { getSecretStorageInfo, type SecretStorageInfo } from "@/lib/secrets";
 import { cn } from "@/lib/utils";
-import { addressKind, addressLabel, currentAddress, hasAddress } from "@/lib/machines";
+import { addressKind, addressLabel, currentAddress, hasAddress, isLocal } from "@/lib/machines";
 import { baseUrl, needsPairing, useApp, type Machine, type Theme } from "@/store/app";
 import { log, useLog } from "@/store/log";
 
@@ -338,7 +340,7 @@ function MachineForm({ machine }: { machine: Machine }) {
           <Button variant="ghost" size="sm" className="w-fit" onClick={() => setRepair(true)}>Add address or pair again…</Button>
         )}
       </div>
-      <QualityPicker value={machine.liveQuality ?? "auto"} onChange={(q) => setLiveQuality(machine.id, q)} />
+      {!isLocal(machine) && <QualityPicker value={machine.liveQuality ?? "auto"} onChange={(q) => setLiveQuality(machine.id, q)} />}
       <div className="flex items-center gap-2 pt-1">
         <Button type="submit" disabled={!form.name.trim()}>Save</Button>
         <Button variant="secondary" disabled={needsPairing(machine) || test.state === "testing"} onClick={() => void runTest()}>
@@ -411,11 +413,13 @@ function MachinesTab() {
         {editing ? (
           // One page per machine: its connection, then its agents.
           <div className="grid min-h-0 min-w-0 flex-1 grid-cols-1 content-start gap-6 overflow-y-auto overflow-x-hidden pr-1">
+            {isLocal(editing) && <LocalSection machine={editing} />}
             <MachineForm machine={editing} />
             <AgentsSection key={editing.id} machine={editing} />
           </div>
         ) : (
           <div className="grid min-h-0 min-w-0 flex-1 grid-cols-1 content-start gap-3 overflow-y-auto">
+            {!machines.some(isLocal) && <LocalSetup onDone={(id) => { set({ editMachineId: id }); selectMachine(id); }} />}
             <h3 className="text-[13px] font-semibold">Add machine</h3>
             <PairForm onPaired={(id) => { set({ editMachineId: id }); selectMachine(id); }} />
           </div>

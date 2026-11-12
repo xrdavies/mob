@@ -1,4 +1,5 @@
 mod history;
+mod local;
 mod secrets;
 mod transfers;
 mod usb;
@@ -34,7 +35,18 @@ pub fn run() {
             history::history_remove,
             history::history_prune,
             history::history_clear,
-            history::history_size
+            history::history_size,
+            local::local_status,
+            local::local_invite,
+            local::local_link,
+            local::local_workdir,
+            local::local_open_settings,
+            local::local_latest,
+            local::local_install,
+            local::local_setup,
+            local::local_service,
+            local::local_logs,
+            local::local_control
         ])
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_dialog::init())

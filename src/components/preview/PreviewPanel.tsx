@@ -533,3 +533,18 @@ export function PreviewPanel({ machine, health, queue }: { machine: Machine; hea
     </aside>
   );
 }
+
+/**
+ * This computer's panel: the queue and the agent's steps, without the live view (the user is
+ * sitting at it; mobd docs/mob-desktop-local-mobd.md).
+ */
+export function ActivityPanel({ health, queue }: { health?: Health; queue?: Queue }) {
+  return (
+    <aside className="flex h-full w-[360px] shrink-0 flex-col border-l bg-panel" aria-label="Activity">
+      <div className="mt-3 grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)] content-start gap-4 overflow-y-auto px-2 pb-3">
+        <QueueList queue={queue} perSession={sessionDesktops(health)} />
+        <Steps />
+      </div>
+    </aside>
+  );
+}

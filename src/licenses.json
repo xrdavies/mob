@@ -756,6 +756,13 @@
   "source": "crate"
  },
  {
+  "name": "block-buffer",
+  "version": "0.12.1",
+  "license": "MIT OR Apache-2.0",
+  "url": "https://github.com/RustCrypto/utils",
+  "source": "crate"
+ },
+ {
   "name": "block-padding",
   "version": "0.3.3",
   "license": "MIT OR Apache-2.0",
@@ -854,6 +861,13 @@
   "source": "crate"
  },
  {
+  "name": "chacha20",
+  "version": "0.10.2",
+  "license": "MIT OR Apache-2.0",
+  "url": "https://github.com/RustCrypto/stream-ciphers",
+  "source": "crate"
+ },
+ {
   "name": "character-entities",
   "version": "2.0.2",
   "license": "MIT",
@@ -931,6 +945,13 @@
   "source": "npm"
  },
  {
+  "name": "const-oid",
+  "version": "0.10.2",
+  "license": "Apache-2.0 OR MIT",
+  "url": "https://github.com/RustCrypto/formats",
+  "source": "crate"
+ },
+ {
   "name": "cookie",
   "version": "0.18.2",
   "license": "MIT OR Apache-2.0",
@@ -980,6 +1001,13 @@
   "source": "crate"
  },
  {
+  "name": "cpufeatures",
+  "version": "0.3.1",
+  "license": "MIT OR Apache-2.0",
+  "url": "https://github.com/RustCrypto/utils",
+  "source": "crate"
+ },
+ {
   "name": "crc32fast",
   "version": "1.5.2",
   "license": "MIT OR Apache-2.0",
@@ -1003,6 +1031,13 @@
  {
   "name": "crypto-common",
   "version": "0.1.7",
+  "license": "MIT OR Apache-2.0",
+  "url": "https://github.com/RustCrypto/traits",
+  "source": "crate"
+ },
+ {
+  "name": "crypto-common",
+  "version": "0.2.2",
   "license": "MIT OR Apache-2.0",
   "url": "https://github.com/RustCrypto/traits",
   "source": "crate"
@@ -1068,6 +1103,13 @@
   "version": "0.24.1",
   "license": "MIT",
   "url": "https://github.com/TedDriggs/darling",
+  "source": "crate"
+ },
+ {
+  "name": "data-encoding",
+  "version": "2.11.1",
+  "license": "MIT",
+  "url": "https://github.com/ia0/data-encoding",
   "source": "crate"
  },
  {
@@ -1150,6 +1192,13 @@
  {
   "name": "digest",
   "version": "0.10.7",
+  "license": "MIT OR Apache-2.0",
+  "url": "https://github.com/RustCrypto/traits",
+  "source": "crate"
+ },
+ {
+  "name": "digest",
+  "version": "0.11.3",
   "license": "MIT OR Apache-2.0",
   "url": "https://github.com/RustCrypto/traits",
   "source": "crate"
@@ -1589,6 +1638,13 @@
   "source": "crate"
  },
  {
+  "name": "hybrid-array",
+  "version": "0.4.15",
+  "license": "MIT OR Apache-2.0",
+  "url": "https://github.com/RustCrypto/hybrid-array",
+  "source": "crate"
+ },
+ {
   "name": "hyper",
   "version": "1.12.0",
   "license": "MIT",
@@ -1726,6 +1782,13 @@
   "version": "0.1.4",
   "license": "MIT OR Apache-2.0",
   "url": "https://github.com/RustCrypto/utils",
+  "source": "crate"
+ },
+ {
+  "name": "io-kit-sys",
+  "version": "0.5.0",
+  "license": "MIT OR Apache-2.0",
+  "url": "https://github.com/jtakakura/io-kit-rs",
   "source": "crate"
  },
  {
@@ -1937,6 +2000,13 @@
   "license": "ISC",
   "url": "https://lucide.dev",
   "source": "npm"
+ },
+ {
+  "name": "mach2",
+  "version": "0.5.0",
+  "license": "BSD-2-Clause OR MIT OR Apache-2.0",
+  "url": "https://github.com/JohnTitor/mach2",
+  "source": "crate"
  },
  {
   "name": "markdown-table",
@@ -2338,6 +2408,13 @@
   "source": "crate"
  },
  {
+  "name": "nusb",
+  "version": "0.2.9",
+  "license": "Apache-2.0 OR MIT",
+  "url": "https://github.com/kevinmehall/nusb",
+  "source": "crate"
+ },
+ {
   "name": "objc2",
   "version": "0.6.5",
   "license": "MIT",
@@ -2597,6 +2674,13 @@
   "source": "npm"
  },
  {
+  "name": "qrcode-generator",
+  "version": "2.0.4",
+  "license": "MIT",
+  "url": "https://github.com/kazuhikoarase/qrcode-generator",
+  "source": "npm"
+ },
+ {
   "name": "querystringify",
   "version": "2.2.0",
   "license": "MIT",
@@ -2626,6 +2710,13 @@
  },
  {
   "name": "rand",
+  "version": "0.10.3",
+  "license": "MIT OR Apache-2.0",
+  "url": "https://github.com/rust-random/rand",
+  "source": "crate"
+ },
+ {
+  "name": "rand",
   "version": "0.8.8",
   "license": "MIT OR Apache-2.0",
   "url": "https://github.com/rust-random/rand",
@@ -2636,6 +2727,13 @@
   "version": "0.3.1",
   "license": "MIT OR Apache-2.0",
   "url": "https://github.com/rust-random/rand",
+  "source": "crate"
+ },
+ {
+  "name": "rand_core",
+  "version": "0.10.1",
+  "license": "MIT OR Apache-2.0",
+  "url": "https://github.com/rust-random/rand_core",
   "source": "crate"
  },
  {
@@ -2842,6 +2940,13 @@
   "source": "crate"
  },
  {
+  "name": "rustls-native-certs",
+  "version": "0.8.5",
+  "license": "Apache-2.0 OR ISC OR MIT",
+  "url": "https://github.com/rustls/rustls-native-certs",
+  "source": "crate"
+ },
+ {
   "name": "rustls-pki-types",
   "version": "1.15.1",
   "license": "MIT OR Apache-2.0",
@@ -3028,6 +3133,13 @@
   "version": "0.4.3",
   "license": "MIT OR Apache-2.0",
   "url": "https://github.com/servo/stylo",
+  "source": "crate"
+ },
+ {
+  "name": "sha1",
+  "version": "0.11.0",
+  "license": "MIT OR Apache-2.0",
+  "url": "https://github.com/RustCrypto/hashes",
   "source": "crate"
  },
  {
@@ -3360,10 +3472,24 @@
   "source": "crate"
  },
  {
+  "name": "tokio-macros",
+  "version": "2.7.2",
+  "license": "MIT",
+  "url": "https://github.com/tokio-rs/tokio",
+  "source": "crate"
+ },
+ {
   "name": "tokio-rustls",
   "version": "0.26.6",
   "license": "MIT OR Apache-2.0",
   "url": "https://github.com/rustls/tokio-rustls",
+  "source": "crate"
+ },
+ {
+  "name": "tokio-tungstenite",
+  "version": "0.30.0",
+  "license": "MIT",
+  "url": "https://github.com/snapview/tokio-tungstenite",
   "source": "crate"
  },
  {
@@ -3484,6 +3610,13 @@
   "license": "0BSD",
   "url": "https://www.typescriptlang.org/",
   "source": "npm"
+ },
+ {
+  "name": "tungstenite",
+  "version": "0.30.0",
+  "license": "MIT OR Apache-2.0",
+  "url": "https://github.com/snapview/tungstenite-rs",
+  "source": "crate"
  },
  {
   "name": "tus-js-client",

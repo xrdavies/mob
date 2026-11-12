@@ -28,6 +28,11 @@ export interface Machine {
   liveQuality?: "auto" | "high" | "low";
   /** The live view last needed mobd's WebSocket here (no UDP path): try it at once next time. */
   liveWebSocket?: boolean;
+  /**
+   * This computer: the mobd Desktop runs on and manages (mobd docs/mob-desktop-local-mobd.md). No
+   * live view, control or USB for it; the user is sitting at it.
+   */
+  local?: boolean;
 }
 
 export type AddressKind = "LAN" | "Remote";
@@ -122,4 +127,18 @@ export function withAddresses(m: Record<string, unknown> & { id: string }): Mach
   if (typeof clientId === "string") address.clientId = clientId;
   if (np !== false) address.needsPairing = true;
   return { ...rest, name: typeof rest.name === "string" ? rest.name : "", addresses: [address] } as Machine;
+}
+
+export const isLocal = (m: Machine | null | undefined) => !!m?.local;
+
+/** Marks `id` as this computer (the only one) and lists it first. */
+export function markLocal(machines: Machine[], id: string): Machine[] {
+  const target = machines.find((m) => m.id === id);
+  if (!target) return machines;
+  const rest = machines.filter((m) => m.id !== id).map((m) => {
+    if (!m.local) return m;
+    const { local: _, ...plain } = m;
+    return plain;
+  });
+  return [{ ...target, local: true }, ...rest];
 }

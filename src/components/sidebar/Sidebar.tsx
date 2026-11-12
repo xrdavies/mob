@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import {
-  Archive, ArchiveRestore, AtSign, ChevronRight, Circle, CircleDot, Monitor, MonitorX, MoreHorizontal, Pencil, Pin, PinOff, Plus, Settings, Share2, SquarePen, Star, Trash2,
+  Archive, ArchiveRestore, AtSign, ChevronRight, Circle, CircleDot, Laptop, Monitor, MonitorX, MoreHorizontal, Pencil, Pin, PinOff, Plus, Settings, Share2, SquarePen, Star, Trash2,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -252,8 +252,8 @@ function MachineGroup({ machine, active, onHandleAction }: { machine: Machine; a
               onClick={() => (active ? set({ collapsed: { ...collapsed, [machine.id]: !collapsed[machine.id] } }) : selectMachine(machine.id))}
               className="flex min-w-0 flex-1 items-center gap-2 text-left"
             >
-              <Monitor className="size-3.5 shrink-0" />
-              <span className="min-w-0 flex-1 truncate">{machine.name}</span>
+              {machine.local ? <Laptop className="size-3.5 shrink-0" aria-label="This computer" /> : <Monitor className="size-3.5 shrink-0" />}
+              <span className="min-w-0 flex-1 truncate" title={machine.local ? "This computer" : undefined}>{machine.name}</span>
               {unpaired && !other && <span className="text-[10.5px] font-normal text-warning">Needs pairing</span>}
             </button>
             <RouteChip machine={machine} />

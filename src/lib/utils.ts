@@ -43,3 +43,12 @@ export function uid(): string {
 export function defaultLabel(what: string, value?: string): string {
   return value ? `Default (${value})` : `Default ${what}`;
 }
+
+/** `latest` is newer than `current` (X.Y.Z, as mobd's release manifest has it); false without `current`. */
+export function newerVersion(latest: string, current?: string): boolean {
+  if (!current) return false;
+  const a = latest.split(".").map(Number);
+  const b = current.split(".").map(Number);
+  for (let i = 0; i < 3; i++) if ((a[i] ?? 0) !== (b[i] ?? 0)) return (a[i] ?? 0) > (b[i] ?? 0);
+  return false;
+}

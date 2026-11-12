@@ -61,3 +61,15 @@ test("route labels and choice", () => {
   assert.equal(needsPairing(m), false);
   assert.equal(needsPairing(null), true);
 });
+
+test("one machine is this computer, listed first", async () => {
+  const { markLocal, isLocal } = await import("./machines.ts");
+  const a = { id: "a", name: "Office", addresses: [] };
+  const b = { id: "b", name: "Laptop", addresses: [], local: true };
+  const c = { id: "c", name: "Mac", addresses: [] };
+  const out = markLocal([a, b, c], "c");
+  assert.deepEqual(out.map((m) => m.id), ["c", "a", "b"]);
+  assert.deepEqual(out.map(isLocal), [true, false, false]);
+  assert.equal("local" in out[2], false);
+  assert.equal(markLocal([a], "zz")[0], a);
+});

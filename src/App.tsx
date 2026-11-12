@@ -6,7 +6,11 @@ import { Toaster } from "sonner";
 import { supports } from "@/api/client";
 import { CommandPalette } from "@/components/CommandPalette";
 import { Composer } from "@/components/composer/Composer";
-import { PreviewPanel } from "@/components/preview/PreviewPanel";
+import { ActivityPanel, PreviewPanel } from "@/components/preview/PreviewPanel";
+import { LocalSetup } from "@/components/local/LocalSetup";
+import { Spinner } from "@/components/StatusIcon";
+import { isLocal } from "@/lib/machines";
+import { connectLocal } from "@/store/local";
 import { SettingsDialog } from "@/components/settings/SettingsDialog";
 import { Sidebar } from "@/components/sidebar/Sidebar";
 import { Timeline } from "@/components/timeline/Timeline";
@@ -38,17 +42,46 @@ function useDarkMode(): boolean {
   return dark;
 }
 
+/**
+ * This computer's mobd no longer accepts this Desktop (revoked, auth reset). Reconnecting creates a
+ * new invitation, so it only happens when the user asks: never on its own around a revocation.
+ */
+function ReconnectLocal({ machine }: { machine: Machine }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  return (
+    <div className="flex flex-1 items-center justify-center bg-background">
+      <div className="w-[380px] rounded-2xl border bg-background p-6 text-center shadow-panel">
+        <img src="/logo.svg" alt="Mob Screen Buddy" className="mx-auto size-20" />
+        <h2 className="mt-3 text-base font-semibold">Reconnect {machine.name}</h2>
+        <p className="mt-1 text-[13px] text-muted-foreground">
+          mobd on this computer no longer accepts this app: its access was removed or reset. Reconnect to pair again.
+        </p>
+        <Button className="mt-4" disabled={busy} onClick={() => {
+          setBusy(true);
+          setError("");
+          connectLocal().catch((err) => setError(err instanceof Error ? err.message : String(err))).finally(() => setBusy(false));
+        }}>
+          {busy && <Spinner />} Reconnect this computer
+        </Button>
+        {error && <p className="mt-2 text-xs text-danger" role="alert">{error}</p>}
+      </div>
+    </div>
+  );
+}
+
 function NoMachine() {
   const openSettings = useApp((s) => s.openSettings);
   return (
     <div className="flex flex-1 items-center justify-center bg-background">
       <div className="w-[380px] rounded-2xl border bg-background p-6 text-center shadow-panel">
         <img src="/logo.svg" alt="Mob Screen Buddy" className="mx-auto size-20" />
-        <h2 className="mt-3 text-base font-semibold">Connect your office computer</h2>
-        <p className="mt-1 text-[13px] text-muted-foreground">
-          Run <code className="font-mono">mobd link</code> on the office computer and paste the pairing link it prints. The live view goes through mobd too.
+        <h2 className="mt-3 text-base font-semibold">Welcome to Mob</h2>
+        <div className="mt-4"><LocalSetup /></div>
+        <p className="mt-4 text-[13px] text-muted-foreground">
+          To work with an office computer, run <code className="font-mono">mobd link</code> there and paste the pairing link it prints.
         </p>
-        <Button className="mt-4" onClick={() => useApp.setState({ settingsOpen: true, settingsTab: "machines", editMachineId: "" })}>
+        <Button variant="secondary" className="mt-3" onClick={() => useApp.setState({ settingsOpen: true, settingsTab: "machines", editMachineId: "" })}>
           Add machine
         </Button>
         <Button variant="link" className="mt-1 w-full" onClick={() => openSettings("about")}>What is Mob?</Button>
@@ -59,6 +92,7 @@ function NoMachine() {
 
 function NeedsPairing({ machine }: { machine: Machine }) {
   const openSettings = useApp((s) => s.openSettings);
+  if (isLocal(machine)) return <ReconnectLocal machine={machine} />;
   return (
     <div className="flex flex-1 flex-col bg-background">
       <RouteBanner machine={machine} />
@@ -179,12 +213,14 @@ export default function App() {
             <NoMachine />
           )}
           {/* Closed means unmounted: no snapshots and no live view connection, as in the mobile apps. */}
-          {machine && previewOpen && <PreviewPanel machine={machine} health={health.data} queue={queue} />}
+          {machine && previewOpen && (isLocal(machine)
+            ? <ActivityPanel health={health.data} queue={queue} />
+            : <PreviewPanel machine={machine} health={health.data} queue={queue} />)}
         </div>
       </div>
       <SettingsDialog />
       {machine && <FilesDialog machine={machine} health={health.data} open={filesOpen} onOpenChange={(o) => set({ filesOpen: o })} />}
-      {machine && <UsbDialog machine={machine} health={health.data} open={usbOpen} onOpenChange={(o) => set({ usbOpen: o })} />}
+      {machine && !isLocal(machine) && <UsbDialog machine={machine} health={health.data} open={usbOpen} onOpenChange={(o) => set({ usbOpen: o })} />}
       <CommandPalette onConnect={connectLive} />
       <Toaster theme={dark ? "dark" : "light"} position="bottom-center" />
     </TooltipProvider>

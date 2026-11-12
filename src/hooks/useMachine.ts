@@ -1,12 +1,14 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { fetchDesktops, fetchHealth, fetchQueue, sessionDesktops, supports } from "@/api/client";
 import type { CollabRequest, Desktops, Queue, Session, Task } from "@/api/types";
 import { chat } from "@/hooks/useChat";
 import { streamAuth } from "@/lib/auth";
 import { applyDesktop, applyLevel, parseDesktop, parseDisk, parseMemory } from "@/lib/desktops";
+import { isLocal } from "@/lib/machines";
+import { applyScreenUse, parseScreenUse, type ScreenUse } from "@/lib/screenUse";
 import { EventStream } from "@/lib/sse";
-import { baseUrl, needsPairing, type Machine } from "@/store/app";
+import { baseUrl, needsPairing, useApp, type Machine } from "@/store/app";
 import { log } from "@/store/log";
 
 /** Polls /health while the machine is paired; a 401 marks it and stops polling. */
@@ -95,4 +97,34 @@ export function useMachineEvents(machine: Machine | null | undefined) {
     es.onopen = refetch;
     return () => es.close();
   }, [base, live, desktops, qc]);
+}
+
+/**
+ * Who is acting on this computer's screen (mobd docs/mob-desktop-local-mobd.md): its own stream,
+ * so the indicator shows whichever machine is open.
+ */
+export function useLocalScreenUse(): ScreenUse[] {
+  const local = useApp((s) => s.machines.find(isLocal));
+  const base = baseUrl(local);
+  const { data: health, dataUpdatedAt } = useHealth(local);
+  const live = !!local && supports(health, "screenUse") && !needsPairing(local);
+  const [uses, setUses] = useState<ScreenUse[]>([]);
+  // /health is the snapshot: a use that started before the stream opened, or one whose end was missed.
+  useEffect(() => {
+    setUses(live ? (health?.screenUse ?? []).map(parseScreenUse).filter((u): u is ScreenUse => !!u && u.active) : []);
+  }, [live, dataUpdatedAt]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!base || !live) return;
+    const es = new EventStream(`${base}/events`, { ...streamAuth(base), resumeParam: "after" });
+    es.addEventListener("screenUse", (raw) => {
+      try {
+        const u = parseScreenUse(JSON.parse(raw.data));
+        if (u) setUses((list) => applyScreenUse(list, u));
+      } catch (err) {
+        log(`screenUse decode failed: ${String(err)}`, "error");
+      }
+    });
+    return () => es.close();
+  }, [base, live]);
+  return uses;
 }

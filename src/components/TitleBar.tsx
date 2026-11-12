@@ -1,4 +1,4 @@
-import { Folder, Monitor, Moon, PanelLeft, RefreshCw, Search, Settings, Sun, Usb } from "lucide-react";
+import { Folder, ListChecks, Monitor, Moon, MousePointer2, PanelLeft, RefreshCw, Search, Settings, Sun, Usb } from "lucide-react";
 import type { Health, Queue } from "@/api/types";
 import { ChecksList } from "@/components/settings/SettingsDialog";
 import { Button } from "@/components/ui/button";
@@ -9,6 +9,10 @@ import { cn } from "@/lib/utils";
 import { isMac, MOD, shortcut } from "@/lib/platform";
 import { supports } from "@/api/client";
 import { active } from "@/lib/usb";
+import { useChat } from "@/hooks/useChat";
+import { useLocalScreenUse } from "@/hooks/useMachine";
+import { isLocal } from "@/lib/machines";
+import { screenUseText } from "@/lib/screenUse";
 import { baseUrl, needsPairing, useApp, type Machine } from "@/store/app";
 import { useUsb } from "@/store/usb";
 
@@ -107,14 +111,15 @@ export function TitleBar(props: {
           </Button>
         </Tooltip>
       )}
-      {props.machine && !needsPairing(props.machine) && isTauri && supports(props.health, "usbRedirection") && (
+      <ScreenUseIndicator />
+      {props.machine && !needsPairing(props.machine) && !isLocal(props.machine) && isTauri && supports(props.health, "usbRedirection") && (
         <UsbButton machine={props.machine} onClick={() => set({ usbOpen: true })} />
       )}
       {props.machine && (
-        <Tooltip content={`${previewOpen ? "Hide" : "Show"} the office desktop (${shortcut("B", true)})`}>
+        <Tooltip content={`${previewOpen ? "Hide" : "Show"} ${isLocal(props.machine) ? "the agent's steps" : "the office desktop"} (${shortcut("B", true)})`}>
           <Button variant="ghost" size="sm" aria-pressed={previewOpen} onClick={() => togglePreview()}
             className={cn("h-7 gap-1.5 px-2.5", previewOpen && "bg-muted text-foreground")}>
-            <Monitor className="size-3.5" /> Desktop
+            {isLocal(props.machine) ? <><ListChecks className="size-3.5" /> Activity</> : <><Monitor className="size-3.5" /> Desktop</>}
           </Button>
         </Tooltip>
       )}
@@ -134,6 +139,39 @@ function UsbButton({ machine, onClick }: { machine: Machine; onClick: () => void
         <Usb className="size-3.5" /> USB
         {shared > 0 && <span className="rounded-full bg-success/15 px-1.5 text-[10px] font-semibold tabular-nums text-success">{shared}</span>}
       </Button>
+    </Tooltip>
+  );
+}
+
+/** Shown while an agent or another device acts on this computer's screen, so the pointer moving is no surprise. */
+function ScreenUseIndicator() {
+  const uses = useLocalScreenUse();
+  const local = useApp((s) => s.machines.find(isLocal));
+  const activeId = useApp((s) => s.activeMachineId);
+  const chat = useChat();
+  const sessions = chat.sessions;
+  if (!uses.length || !local) return null;
+  // Conversation titles are known for the open machine only.
+  const title = (id?: string) => (activeId === local.id ? sessions.find((x) => x.id === id)?.title : undefined);
+  const text = screenUseText(uses, title);
+  const agent = uses.find((u) => u.source === "agent");
+  return (
+    <Tooltip content={text}>
+      <button type="button" role="status" aria-live="polite"
+        onClick={() => {
+          // Opens the agent's conversation: directly when this computer is open, else on switching to it.
+          const app = useApp.getState();
+          if (activeId === local.id) {
+            if (agent?.sessionId) void chat.open(agent.sessionId);
+            return;
+          }
+          if (agent?.sessionId) app.rememberSession(local.id, agent.sessionId);
+          app.selectMachine(local.id);
+        }}
+        className="flex h-7 max-w-[260px] items-center gap-1.5 rounded-md bg-warning/15 px-2 text-xs font-medium text-warning">
+        <MousePointer2 className="size-3.5 shrink-0 animate-pulse" />
+        <span className="truncate">{text}</span>
+      </button>
     </Tooltip>
   );
 }

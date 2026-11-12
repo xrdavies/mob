@@ -12,8 +12,6 @@ Desktop **mob** client: dispatch tasks to the office agent, follow what it does 
 
 Design: [docs/ui.md](docs/ui.md) · Live view: [docs/desktop-streaming.md](docs/desktop-streaming.md) · Stack decision: [ADR 0009](docs/adr/0009-app-frontend-react.md) · API: [docs/mobd-v3.md](https://github.com/xrdavies/mobd/blob/main/docs/mobd-v3.md)
 
-Planned, not implemented: [working with this computer](https://github.com/xrdavies/mobd/blob/main/docs/mob-desktop-local-mobd.md), where Desktop installs and manages the standard mobd so it works with local agents by default and pairs phones with this computer.
-
 Planned, not implemented: [USB redirection](docs/usb-redirection.md), sharing selected local hardware with mobd through open-source USB/IP backends. The draft includes platform limits and links to mobd's Apple entitlement application.
 
 The [agent collaboration draft](docs/agent-collaboration.md) defines Desktop's
@@ -72,6 +70,7 @@ Checks: `npm test` (conversation lifecycle, timeline, pairing, SSE, live stream 
 
 ## Using the App
 
+- **This computer** (macOS on Apple Silicon, Linux): Desktop installs mobd the official way (same download, checksum and signature checks as `install.sh`) or uses the one already there, starts it, and pairs with it, so you can work with local agents without a terminal. It has no live view, control or USB (you are sitting at it). Settings → Machines → This computer starts, stops and restarts mobd, shows its logs, changes where agents work, updates mobd, asks for macOS permissions, and pairs phones and other computers with it (QR code). A title bar indicator shows when an agent or another device is using this computer's screen. [Design](https://github.com/xrdavies/mobd/blob/main/docs/mob-desktop-local-mobd.md).
 - **Files**: upload local files and download from the machine’s shared directory, with pause/continue, persistent partial transfers and SHA-256 verification. Choose local files and save locations with the system picker. [Transfer details](docs/file-transfers.md).
 
 - **Sidebar:** conversations of the selected machine, live via mobd's `/events` (running spinner, queue position, failed dot). Right-click or `⋯` to rename (or double-click), pin, archive, delete. Archived conversations are in the collapsible group.

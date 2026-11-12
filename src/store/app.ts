@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import { configureAuth } from "@/lib/auth";
-import { currentAddress, pairMachine, withAddresses, type Machine } from "@/lib/machines";
+import { currentAddress, markLocal, pairMachine, withAddresses, type Machine } from "@/lib/machines";
 import { historyStore } from "@/lib/historyStore";
 import { deleteSecret, getSecret, loadSecrets, setSecret, tokenAccount } from "@/lib/secrets";
 import { uid } from "@/lib/utils";
@@ -81,6 +81,8 @@ interface Actions {
   /** Removes one address from this device; the machine goes with its last one. */
   removeAddress: (id: string, addressId: string) => void;
   deleteMachine: (id: string) => void;
+  /** Marks the machine as this computer (mobd docs/mob-desktop-local-mobd.md) and lists it first. */
+  setLocal: (id: string) => void;
   rememberSession: (machineId: string, sessionId: string | null) => void;
   setTurnPrefs: (key: string, prefs: TurnPrefs) => void;
   clearTurnPrefs: (key: string) => void;
@@ -210,6 +212,7 @@ export const useApp = create<AppState>()(
         const activeMachineId = get().activeMachineId === id ? machines[0]?.id ?? null : get().activeMachineId;
         set({ machines, savedSessions, activeMachineId });
       },
+      setLocal: (id) => set({ machines: markLocal(get().machines, id) }),
       rememberSession: (machineId, sessionId) => {
         if (get().savedSessions[machineId] === sessionId) return;
         set({ savedSessions: { ...get().savedSessions, [machineId]: sessionId } });
