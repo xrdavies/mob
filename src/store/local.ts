@@ -82,7 +82,6 @@ export async function connectLocal({ select = true }: { select?: boolean } = {})
   });
   useApp.getState().setLocal(id);
   if (select) useApp.getState().selectMachine(id);
-  useApp.setState({ localAuto: true });
   log("paired with this computer's mobd");
   return id;
 }
@@ -94,11 +93,11 @@ export async function connectLocal({ select = true }: { select?: boolean } = {})
  */
 export async function autoConnectLocal(): Promise<void> {
   if (!isTauri()) return;
-  const { machines, localAuto, activeMachineId } = useApp.getState();
-  if (!localAuto || machines.some(isLocal)) return;
+  const { machines, activeMachineId } = useApp.getState();
+  if (machines.some(isLocal)) return;
   try {
     const status = await localStatus();
-    if (!shouldAutoConnectLocal(useApp.getState().machines, useApp.getState().localAuto, !!status?.running)) return;
+    if (!shouldAutoConnectLocal(useApp.getState().machines, !!status?.running)) return;
     await connectLocal({ select: !activeMachineId });
     if (activeMachineId) toast.success("Connected to mobd on this computer");
   } catch (err) {

@@ -144,9 +144,10 @@ export function markLocal(machines: Machine[], id: string): Machine[] {
 }
 
 /**
- * Whether Desktop connects to this computer's running mobd on its own: once, while no machine is this
- * computer and the user has not removed it (mobd docs/mob-desktop-local-mobd.md).
+ * Whether Desktop connects to this computer's running mobd on its own: while no machine is this
+ * computer. This computer cannot be removed (docs/desktop-redesign D8); a revoked one stays listed
+ * and asks before reconnecting, so it is never paired again behind the user's back.
  */
-export function shouldAutoConnectLocal(machines: Machine[], localAuto: boolean, mobdRunning: boolean): boolean {
-  return localAuto && mobdRunning && !machines.some(isLocal);
+export function shouldAutoConnectLocal(machines: Machine[], mobdRunning: boolean): boolean {
+  return mobdRunning && !machines.some(isLocal);
 }

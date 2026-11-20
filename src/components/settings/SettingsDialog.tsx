@@ -202,9 +202,12 @@ function MachineForm({ machine }: { machine: Machine }) {
         </Button>
         {saved && <span className={cn("text-xs", saved === "Saved" ? "text-success" : "text-danger")}>{saved}</span>}
         <div className="flex-1" />
-        <Button variant="ghost" className="text-danger hover:text-danger" onClick={() => { void deleteMachine(machine.id).then(warnKept); set({ editMachineId: "" }); }}>
-          <Trash2 className="size-3.5" /> Remove
-        </Button>
+        {/* This computer is always listed (docs/desktop-redesign D8): stop or uninstall mobd in its Service section instead. */}
+        {!isLocal(machine) && (
+          <Button variant="ghost" className="text-danger hover:text-danger" onClick={() => { void deleteMachine(machine.id).then(warnKept); set({ editMachineId: "" }); }}>
+            <Trash2 className="size-3.5" /> Remove
+          </Button>
+        )}
       </div>
       {test.state === "error" && test.error && <p className="text-xs text-danger">{test.error}</p>}
       {test.health && (

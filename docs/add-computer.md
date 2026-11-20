@@ -91,8 +91,9 @@ Silicon, Linux; see mobd [docs/mob-desktop-local-mobd.md](https://github.com/xrd
 ### D5b. Desktop connects to this computer on its own
 
 - **Choice:** on launch, when mobd runs on this computer and Desktop is not connected to it, Desktop connects and
-  adds This computer. A new user lands on it; others keep their open computer and see a short notice. Removing This
-  computer turns this off until the user connects it again; a revoked credential still asks before reconnecting.
+  adds This computer. A new user lands on it; others keep their open computer and see a short notice. This computer
+  cannot be removed ([desktop-redesign](desktop-redesign/README.md) D8; stop or uninstall mobd instead); a revoked
+  credential keeps it listed and asks before reconnecting.
 - **Reason:** installing Desktop should be enough to use Mob. Connecting changes nothing on the computer; installing
   or starting mobd still waits for the user's click.
 
