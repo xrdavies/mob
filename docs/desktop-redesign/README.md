@@ -162,7 +162,7 @@ and color together. Words: Computer (not machine), This computer, Agent with @ha
 
 | Page | Contents |
 | --- | --- |
-| General | About card (logo, version, check for updates) · Startup (open at login, menu bar) · Updates (automatic, channel) · Conversations (saved copies size + clear, credentials store) · Keyboard (shortcuts, editable) · Help (app log, What is Mob?, licenses) |
+| General | About card (logo, version, check for updates) · Startup (open at login, menu bar) · Updates (automatic; stable releases only) · Conversations (saved copies size + clear, credentials store) · Keyboard (shortcuts, editable) · Help (app log, What is Mob?, licenses) |
 | Appearance | Theme (System / Light / Dark) · Layout (density, text size, conversations per computer, agent steps folded, side panel) |
 | Notifications | Allow · Tell me when (needs you, finished, failed, agent uses this screen, new device pairs) · Per computer (Everything / Only when it needs me) · Delivery (sound, Dock badge, only in background) |
 | This computer | **General** (name, agents' folder, summaries of the other tabs) · **Agents** · **Service** (mobd status, restart, stop, start at login, version, local and remote addresses, logs, program and data paths, Uninstall) · **Devices & access** (paired devices with Remove, Pair a phone or computer with QR and link, macOS permissions with Allow…) |
