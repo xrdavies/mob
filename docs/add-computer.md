@@ -88,6 +88,14 @@ Silicon, Linux; see mobd [docs/mob-desktop-local-mobd.md](https://github.com/xrd
 - **Reason:** most people start with the computer in front of them. Connecting to a running mobd changes nothing on
   the computer, so it happens on that click; installing or starting mobd shows the setup step first.
 
+### D5b. Desktop connects to this computer on its own
+
+- **Choice:** on launch, when mobd runs on this computer and Desktop is not connected to it, Desktop connects and
+  adds This computer. A new user lands on it; others keep their open computer and see a short notice. Removing This
+  computer turns this off until the user connects it again; a revoked credential still asks before reconnecting.
+- **Reason:** installing Desktop should be enough to use Mob. Connecting changes nothing on the computer; installing
+  or starting mobd still waits for the user's click.
+
 ### D6. No "done" screen
 
 - **Choice:** pairing closes the dialog and opens the computer; no "Open" / "Add another" screen.

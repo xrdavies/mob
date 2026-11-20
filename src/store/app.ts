@@ -42,6 +42,8 @@ interface Persisted {
   sidebarOpen: boolean;
   previewOpen: boolean;
   theme: Theme;
+  /** Connect to this computer's mobd on launch; off once the user removes This computer. */
+  localAuto: boolean;
 }
 
 interface Ephemeral {
@@ -134,6 +136,7 @@ function initial(): Persisted {
     sidebarOpen: true,
     previewOpen: false,
     theme: "system",
+    localAuto: true,
   };
 }
 
@@ -233,7 +236,8 @@ export const useApp = create<AppState>()(
         const savedSessions = { ...get().savedSessions };
         delete savedSessions[id];
         const activeMachineId = get().activeMachineId === id ? machines[0]?.id ?? null : get().activeMachineId;
-        set({ machines, savedSessions, activeMachineId });
+        // Removing This computer is a choice: Desktop does not add it back on its own.
+        set({ machines, savedSessions, activeMachineId, ...(machine.local ? { localAuto: false } : {}) });
         return pending;
       },
       setLocal: (id) => set({ machines: markLocal(get().machines, id) }),
@@ -259,7 +263,7 @@ export const useApp = create<AppState>()(
       storage: createJSONStorage(() => localStorage),
       partialize: (s): Persisted => ({
         machines: s.machines, activeMachineId: s.activeMachineId, savedSessions: s.savedSessions,
-        collapsed: s.collapsed, sidebarOpen: s.sidebarOpen, previewOpen: s.previewOpen, theme: s.theme,
+        collapsed: s.collapsed, sidebarOpen: s.sidebarOpen, previewOpen: s.previewOpen, theme: s.theme, localAuto: s.localAuto,
       }),
     },
   ),

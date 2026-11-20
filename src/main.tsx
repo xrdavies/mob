@@ -6,6 +6,7 @@ import { isTauri } from "./components/TitleBar";
 import { isMac } from "./lib/platform";
 import "./index.css";
 import { loadMachineSecrets } from "./store/app";
+import { autoConnectLocal } from "./store/local";
 
 // The macOS Tauri window is transparent with sidebar vibrancy behind the chrome; elsewhere it is opaque.
 if (isTauri && isMac) document.documentElement.classList.add("vibrancy");
@@ -13,11 +14,13 @@ if (isTauri && isMac) document.documentElement.classList.add("vibrancy");
 const queryClient = new QueryClient({ defaultOptions: { queries: { refetchOnWindowFocus: false, staleTime: 5_000 } } });
 
 // Credentials come from the keychain before the first request, so no request goes out unauthenticated.
-void loadMachineSecrets().finally(() =>
+void loadMachineSecrets().finally(() => {
+  void autoConnectLocal();
   createRoot(document.getElementById("root")!).render(
     <StrictMode>
       <QueryClientProvider client={queryClient}>
         <App />
       </QueryClientProvider>
     </StrictMode>,
-  ));
+  );
+});

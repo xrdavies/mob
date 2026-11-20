@@ -2,7 +2,8 @@
 // pairing Desktop with it. The native side (src-tauri/src/local.rs) does the work; this drives it.
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { isLocal } from "@/lib/machines";
+import { toast } from "sonner";
+import { isLocal, shouldAutoConnectLocal } from "@/lib/machines";
 import { pair, parsePairLink } from "@/lib/pairing";
 import { useApp } from "@/store/app";
 import { log } from "@/store/log";
@@ -69,7 +70,7 @@ export const localControl = <T,>(method: "GET" | "POST" | "DELETE", path: string
  * at the loopback address, redeemed like any pairing link. A machine already paired with the same
  * mobd (over its LAN address) becomes this computer instead of a second entry.
  */
-export async function connectLocal(): Promise<string> {
+export async function connectLocal({ select = true }: { select?: boolean } = {}): Promise<string> {
   const { url } = await invoke<{ url: string }>("local_invite");
   const link = parsePairLink(url);
   const paired = await pair(link, LOCAL_DEVICE_NAME);
@@ -80,7 +81,28 @@ export async function connectLocal(): Promise<string> {
     name: "This computer", origin: link.origin, ...paired,
   });
   useApp.getState().setLocal(id);
-  useApp.getState().selectMachine(id);
+  if (select) useApp.getState().selectMachine(id);
+  useApp.setState({ localAuto: true });
   log("paired with this computer's mobd");
   return id;
+}
+
+/**
+ * On launch: when mobd runs on this computer and Desktop is not connected to it, connect, so Mob works
+ * right after installing Desktop. Connecting changes nothing on the computer; installing or starting
+ * mobd still waits for the user. A new user lands on This computer; others keep what they had open.
+ */
+export async function autoConnectLocal(): Promise<void> {
+  if (!isTauri()) return;
+  const { machines, localAuto, activeMachineId } = useApp.getState();
+  if (!localAuto || machines.some(isLocal)) return;
+  try {
+    const status = await localStatus();
+    if (!shouldAutoConnectLocal(useApp.getState().machines, useApp.getState().localAuto, !!status?.running)) return;
+    await connectLocal({ select: !activeMachineId });
+    if (activeMachineId) toast.success("Connected to mobd on this computer");
+  } catch (err) {
+    // Settings and the welcome screen still offer it; nothing pops up here.
+    log(`connecting to this computer failed: ${err instanceof Error ? err.message : String(err)}`, "error");
+  }
 }

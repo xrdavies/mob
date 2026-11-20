@@ -142,3 +142,11 @@ export function markLocal(machines: Machine[], id: string): Machine[] {
   });
   return [{ ...target, local: true }, ...rest];
 }
+
+/**
+ * Whether Desktop connects to this computer's running mobd on its own: once, while no machine is this
+ * computer and the user has not removed it (mobd docs/mob-desktop-local-mobd.md).
+ */
+export function shouldAutoConnectLocal(machines: Machine[], localAuto: boolean, mobdRunning: boolean): boolean {
+  return localAuto && mobdRunning && !machines.some(isLocal);
+}

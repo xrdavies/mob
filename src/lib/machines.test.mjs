@@ -73,3 +73,14 @@ test("one machine is this computer, listed first", async () => {
   assert.equal("local" in out[2], false);
   assert.equal(markLocal([a], "zz")[0], a);
 });
+
+test("Desktop connects to this computer on its own only once and not after it is removed", async () => {
+  const { shouldAutoConnectLocal } = await import("./machines.ts");
+  const office = { id: "a", name: "Office", addresses: [] };
+  const local = { id: "b", name: "This computer", addresses: [], local: true };
+  assert.equal(shouldAutoConnectLocal([], true, true), true);
+  assert.equal(shouldAutoConnectLocal([office], true, true), true, "existing users get it too");
+  assert.equal(shouldAutoConnectLocal([office, local], true, true), false, "already connected");
+  assert.equal(shouldAutoConnectLocal([office], false, true), false, "the user removed it");
+  assert.equal(shouldAutoConnectLocal([], true, false), false, "mobd not running: the user decides");
+});
