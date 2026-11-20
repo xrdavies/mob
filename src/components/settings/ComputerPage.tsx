@@ -7,7 +7,7 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { fetchHealth, fetchRelease, supports } from "@/api/client";
+import { fetchHealth, fetchQueue, fetchRelease, supports } from "@/api/client";
 import type { Check as HealthCheck, Health } from "@/api/types";
 import { AgentsTab, RestartBar } from "@/components/settings/AgentsSection";
 import { useLocalStatus } from "@/components/local/LocalSetup";
@@ -27,6 +27,9 @@ import { baseUrl, needsPairing, useApp, type ComputerTab, type Machine } from "@
 import { installLocal, localControl, localLatest, localLogs, localService, type LocalStatus } from "@/store/local";
 import { log } from "@/store/log";
 import { ConfirmButton, Dot, errorText, Group, Page, Row, Segmented } from "./ui";
+
+/** Permissions the user asked for from Desktop this session: mobd restarts for them once idle. */
+const askedGrants = new Set<string>();
 
 /** Grants whose prompt macOS shows once; after that only System Settings turns them on. */
 const PANE_GRANTS = new Set(["screenRecording", "accessibility"]);
@@ -265,6 +268,7 @@ function DevicesTab({ machine }: { machine: Machine }) {
   const perms = useQuery({ queryKey: ["local-permissions"], queryFn: () => localControl<{ permissions: Grant[] }>("GET", "/permissions"), refetchInterval: 5000 });
   const [restarting, setRestarting] = useState(false);
   const ask = async (g: Grant) => {
+    askedGrants.add(g.name);
     let asked = true;
     try {
       await localControl("POST", `/permissions/${encodeURIComponent(g.name)}`);
@@ -278,16 +282,33 @@ function DevicesTab({ machine }: { machine: Machine }) {
     }
     void perms.refetch();
   };
-  // A grant this mobd only sees after a restart.
-  const restart = () => {
+  // A grant this mobd only sees after a restart (Screen Recording: macOS tells a process once).
+  const restart = (label?: string) => {
     setRestarting(true);
-    localService("restart").catch((err) => log(`restarting mobd failed: ${errorText(err)}`, "error")).finally(() => {
+    localService("restart").then(
+      () => label && toast.success(`mobd restarted to use ${label}`),
+      (err) => log(`restarting mobd failed: ${errorText(err)}`, "error"),
+    ).finally(() => {
       setRestarting(false);
       void perms.refetch();
       void qc.invalidateQueries({ queryKey: ["local-status"] });
       void qc.invalidateQueries({ queryKey: ["health", baseUrl(machine)] });
     });
   };
+  // Allowed from here: mobd restarts by itself once nothing runs, and says so.
+  const pending = (perms.data?.permissions ?? []).find((g) => g.state === "restart" && askedGrants.has(g.name));
+  const { data: queue } = useQuery({
+    queryKey: ["queue", baseUrl(machine)], queryFn: () => fetchQueue(baseUrl(machine)), enabled: !!pending, refetchInterval: 3000,
+  });
+  const tasks = (queue?.running.length ?? 0) + (queue?.queued.length ?? 0);
+  useEffect(() => {
+    if (!pending || !queue || tasks > 0 || restarting) return;
+    askedGrants.delete(pending.name);
+    restart(pending.label);
+  }, [pending?.name, queue, tasks, restarting]); // eslint-disable-line react-hooks/exhaustive-deps
+  const restartDetail = (g: Grant) => restarting ? "Restarting mobd…"
+    : askedGrants.has(g.name) && tasks > 0 ? `Allowed · mobd restarts to use it when ${tasks} task${tasks > 1 ? "s" : ""} finish${tasks > 1 ? "" : "es"}`
+      : "Allowed · applies after mobd restarts";
   return (
     <div className="grid content-start gap-5">
       <Group title="Paired devices">
@@ -307,10 +328,12 @@ function DevicesTab({ machine }: { machine: Machine }) {
         <Group title="macOS permissions">
           {perms.data.permissions.map((g) => (
             <Row key={g.name} label={<span className="flex items-center gap-2"><Dot tone={g.state === "granted" ? "ok" : g.state === "restart" ? "warn" : "bad"} />{g.label}</span>}
-              detail={g.state === "missing" ? g.detail : g.state === "restart" ? "Applies after mobd restarts" : undefined}>
+              detail={g.state === "missing" ? g.detail : g.state === "restart" ? restartDetail(g) : undefined}>
               {g.state === "missing" && <Button size="sm" variant="secondary" onClick={() => void ask(g)}>Allow…</Button>}
               {g.state === "restart" && (
-                <Button size="sm" variant="secondary" disabled={restarting} onClick={restart}>{restarting && <Spinner />} Restart mobd</Button>
+                <ConfirmButton label={<>{restarting && <Spinner />} Restart now</>} disabled={restarting}
+                  confirm={tasks > 0 ? `Stops ${tasks} task${tasks > 1 ? "s" : ""} — restart?` : undefined}
+                  onConfirm={() => { askedGrants.delete(g.name); restart(g.label); }} />
               )}
             </Row>
           ))}
