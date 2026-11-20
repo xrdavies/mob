@@ -55,7 +55,7 @@ export async function setupLocal(workdir: string): Promise<void> {
   log(`local mobd started: ${out.split("\n")[0]}`);
 }
 
-export async function localService(action: "start" | "stop" | "restart", login = false): Promise<string> {
+export async function localService(action: "start" | "stop" | "restart" | "uninstall", login = false): Promise<string> {
   const out = await invoke<string>("local_service", { action, login });
   log(`local mobd ${action}: ${out.split("\n")[0] || "done"}`);
   return out;

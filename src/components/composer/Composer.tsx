@@ -383,7 +383,7 @@ export function Composer({ machineId, machineName, health }: { machineId: string
             <>
               <Picker icon={Cpu} label="Model" placeholder={defaultLabel("model", runner?.defaultModel)} value={shown.model} options={menuModels(models, shown.model)}
                 onChange={(model) => choose({ model })}
-                onEdit={() => openSettings("machines", machineId, runner?.name ?? "")} />
+                onEdit={() => openSettings("computer", machineId, runner?.name ?? "")} />
               <Picker icon={Brain} label="Reasoning effort" placeholder={defaultLabel("effort", runner?.defaultEffort)} value={shown.effort} options={efforts}
                 onChange={(effort) => choose({ effort })} />
             </>

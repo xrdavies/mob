@@ -28,7 +28,7 @@ import { Button } from "@/components/ui/button";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { chat, useChat } from "@/hooks/useChat";
 import { useHealth, useMachineEvents, useQueue } from "@/hooks/useMachine";
-import { useQuestionAlerts } from "@/hooks/useQuestionAlerts";
+import { useAlerts } from "@/hooks/useAlerts";
 import { RouteBanner } from "@/components/MachineRoute";
 import { baseUrl, needsPairing, useActiveMachine, useApp, type Machine } from "@/store/app";
 import { log } from "@/store/log";
@@ -46,6 +46,11 @@ function useDarkMode(): boolean {
   useEffect(() => {
     document.documentElement.classList.toggle("dark", dark);
   }, [dark]);
+  // Text size (Appearance) scales the whole window, as the browser's zoom would.
+  const textSize = useApp((s) => s.textSize);
+  useEffect(() => {
+    document.documentElement.style.setProperty("zoom", textSize === "small" ? "0.92" : textSize === "large" ? "1.1" : "");
+  }, [textSize]);
   return dark;
 }
 
@@ -108,7 +113,7 @@ function NoMachine() {
             <Button className="mt-5" disabled={isLoading} onClick={() => useApp.getState().openAdd(undefined, "link")}>Add a computer</Button>
           </>
         )}
-        <Button variant="link" className="w-full text-muted-foreground" onClick={() => openSettings("about")}>What is Mob?</Button>
+        <Button variant="link" className="w-full text-muted-foreground" onClick={() => openSettings("general")}>What is Mob?</Button>
       </div>
     </div>
   );
@@ -155,7 +160,7 @@ export default function App() {
   const { data: queue } = useQueue(base, supports(health.data, "queue"));
   const dark = useDarkMode();
   useMachineEvents(machine);
-  useQuestionAlerts(chatState);
+  useAlerts();
 
   // Load the selected machine's conversations; restore its last session.
   useEffect(() => {

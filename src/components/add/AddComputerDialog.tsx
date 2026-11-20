@@ -1,18 +1,18 @@
 import { invoke, isTauri } from "@tauri-apps/api/core";
-import { ArrowLeft, Check, ChevronRight, ClipboardPaste, Copy, Laptop, Lock, Monitor, Pencil, TriangleAlert } from "lucide-react";
+import { ArrowLeft, Check, ChevronRight, ClipboardPaste, Copy, Lock, Monitor, Pencil, TriangleAlert } from "lucide-react";
 import { useEffect, useRef, useState, type ClipboardEvent, type DragEvent, type KeyboardEvent, type ReactNode } from "react";
 import { toast } from "sonner";
 import { Spinner } from "@/components/StatusIcon";
-import { LocalSetup, useLocalStatus } from "@/components/local/LocalSetup";
+import { LocalSetup } from "@/components/local/LocalSetup";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { addressKind, addressLabel, hasAddress, hostOf, isLocal } from "@/lib/machines";
+import { addressKind, addressLabel, hasAddress, hostOf } from "@/lib/machines";
 import { deviceNameError, nameFromOrigin, pair, parsePairLink, type PairLink } from "@/lib/pairing";
 import { cn } from "@/lib/utils";
 import { useApp, type Machine } from "@/store/app";
 
-type Step = "choose" | "link" | "confirm" | "local";
+type Step = "link" | "confirm" | "local";
 
 const defaultDeviceName = () => {
   const ua = navigator.userAgent;
@@ -44,19 +44,6 @@ function Header({ title, description, onBack }: { title: string; description?: R
         {description && <DialogDescription className="text-[12.5px]">{description}</DialogDescription>}
       </div>
     </div>
-  );
-}
-
-function ChoiceCard({ icon, title, text, onClick }: { icon: ReactNode; title: string; text: string; onClick: () => void }) {
-  return (
-    <button type="button" onClick={onClick}
-      className="group grid gap-3 rounded-xl border bg-panel p-4 text-left transition-colors hover:border-foreground/25 hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-      <span className="flex size-10 items-center justify-center rounded-lg bg-background text-muted-foreground shadow-sm group-hover:text-foreground">{icon}</span>
-      <span className="grid gap-0.5">
-        <span className="flex items-center gap-1 text-[13.5px] font-semibold">{title}<ChevronRight className="size-3.5 opacity-0 transition-opacity group-hover:opacity-60" /></span>
-        <span className="text-[12px] text-muted-foreground">{text}</span>
-      </span>
-    </button>
   );
 }
 
@@ -102,7 +89,7 @@ function LinkStep({ machine, onLink, onBack, checkClipboard }: {
   return (
     <div className="grid gap-5" onDragOver={(e) => e.preventDefault()} onDrop={onDrop}>
       <Header
-        title={machine ? `Pair ${machine.name} again` : "Add another computer"}
+        title={machine ? `Pair ${machine.name} again` : "Add a computer"}
         description={machine ? "Or add another of its addresses, such as its Tailscale one." : "An office Mac or Linux machine running mobd."}
         onBack={onBack}
       />
@@ -255,11 +242,9 @@ function ConfirmStep({ link, machine, onBack, onPaired }: {
 export function AddComputerDialog() {
   const { addOpen, addFor, addStart, machines, set, selectMachine } = useApp();
   const target = machines.find((m) => m.id === addFor);
-  const { data: local } = useLocalStatus();
-  const offerLocal = !target && !!local?.supported && !machines.some(isLocal);
-  const first: Step = addStart ?? (offerLocal ? "choose" : "link");
-  // Back to Choose only when the dialog started there.
-  const fromChoose = first === "choose";
+  // Straight to the mobd link (docs/desktop-redesign D8): this computer is set up from the welcome
+  // screen or its Service tab, never offered here.
+  const first: Step = addStart ?? "link";
   const [step, setStep] = useState<Step>(first);
   const [link, setLink] = useState<PairLink | null>(null);
   const clipboardChecked = useRef(false);
@@ -286,23 +271,14 @@ export function AddComputerDialog() {
   return (
     <Dialog open={addOpen} onOpenChange={(o) => !o && close()}>
       <DialogContent className="w-[520px] max-w-[92vw] p-6" aria-describedby={undefined}>
-        {step === "choose" && (
-          <div className="grid gap-5">
-            <Header title="Add a computer" description="Your agents work on the computer you add; Mob steers them from here." />
-            <div className="grid grid-cols-2 gap-3">
-              <ChoiceCard icon={<Laptop className="size-5" />} title="This computer" text="Chat with agents on this computer." onClick={() => setStep("local")} />
-              <ChoiceCard icon={<Monitor className="size-5" />} title="Another computer" text="An office Mac or Linux machine." onClick={() => setStep("link")} />
-            </div>
-          </div>
-        )}
         {step === "local" && (
           <div className="grid gap-4">
-            <Header title="Start with this computer" onBack={fromChoose ? () => setStep("choose") : undefined} />
+            <Header title="Start with this computer" />
             <LocalSetup onDone={done} onCancel={close} />
           </div>
         )}
         {step === "link" && (
-          <LinkStep machine={target} checkClipboard={checkClipboard} onBack={fromChoose ? () => setStep("choose") : undefined}
+          <LinkStep machine={target} checkClipboard={checkClipboard}
             onLink={(l) => { setLink(l); setStep("confirm"); }} />
         )}
         {step === "confirm" && link && (

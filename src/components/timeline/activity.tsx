@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { useChat } from "@/hooks/useChat";
 import { collabStepTitle } from "@/lib/collab";
 import { cn, duration } from "@/lib/utils";
+import { useApp } from "@/store/app";
 
 export function activityIcon(a: Activity): LucideIcon {
   if (a.kind === "tool") {
@@ -159,7 +160,7 @@ export function ActivityRow({ a, base, defaultOpen = false }: { a: Activity; bas
 
 export function ActivityGroup({ activities, base }: { activities: Activity[]; base: string }) {
   const sessions = useChat().sessions;
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(() => useApp.getState().stepsOpen);
   const latest = activities[activities.length - 1];
   const failed = activities.filter((a) => a.status === "failed" && a.kind !== "notice").length;
   const took = duration(activities[0].startedAt, latest.updatedAt);
@@ -171,8 +172,8 @@ export function ActivityGroup({ activities, base }: { activities: Activity[]; ba
         className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-[12.5px] text-muted-foreground hover:bg-panel"
       >
         <ChevronRight className={cn("size-3.5 transition-transform", open && "rotate-90")} />
-        <span className="font-medium text-foreground/85">{activities.length} steps</span>
-        {took && <span>· {took}</span>}
+        <span className="font-medium text-foreground/85">{took ? `Worked for ${took}` : "Worked"}</span>
+        <span>· {activities.length} steps</span>
         {failed > 0 && <span className="text-danger">· {failed} failed</span>}
         {!open && (
           <span className="ml-1 min-w-0 flex-1 truncate text-right text-[12px]">

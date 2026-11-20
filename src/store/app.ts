@@ -24,7 +24,22 @@ export interface PairResult {
 }
 
 export type Theme = "system" | "light" | "dark";
-export type SettingsTab = "machines" | "appearance" | "log" | "about";
+/** Settings pages: the app's, or one computer's (editMachineId) with its tabs. */
+export type SettingsTab = "general" | "appearance" | "notifications" | "log" | "computer";
+export type ComputerTab = "general" | "agents" | "service" | "devices" | "connection";
+export type TextSize = "small" | "default" | "large";
+
+/** What Mob tells the user about (Settings → Notifications). */
+export interface NotifyPrefs {
+  needs: boolean;
+  done: boolean;
+  failed: boolean;
+  sound: boolean;
+  /** Only while Mob is in the background (toasts show either way). */
+  background: boolean;
+  /** Per computer: "needs" limits it to questions and approvals. */
+  computers: Record<string, "all" | "needs">;
+}
 
 // A new chat's choices on this device, until the chat exists: keyed by machine ID (runner) and
 // "<machine>/<runner>" (model, effort). In memory only; conversations keep theirs in mobd.
@@ -44,6 +59,10 @@ interface Persisted {
   theme: Theme;
   /** Conversations listed under each computer before "Show N more" (Appearance). */
   perComputer: number;
+  textSize: TextSize;
+  /** Agent steps in replies start unfolded. */
+  stepsOpen: boolean;
+  notify: NotifyPrefs;
 }
 
 interface Ephemeral {
@@ -52,6 +71,7 @@ interface Ephemeral {
   turnPrefs: Record<string, TurnPrefs>;
   settingsOpen: boolean;
   settingsTab: SettingsTab;
+  computerTab: ComputerTab;
   editMachineId: string | null;
   /** An agent of the edited machine to bring into view ("" for its Agents section). */
   settingsFocus: string | null;
@@ -102,6 +122,7 @@ interface Actions {
   rememberSession: (machineId: string, sessionId: string | null) => void;
   setTurnPrefs: (key: string, prefs: TurnPrefs) => void;
   clearTurnPrefs: (key: string) => void;
+  /** Opens Settings on a page; "computer" with a computer, and focus to open one of its agents. */
   openSettings: (tab?: SettingsTab, editMachineId?: string | null, focus?: string | null) => void;
   /** Opens "Add a computer"; with a machine, pairs it again or adds an address to it. */
   openAdd: (machineId?: string, start?: "local" | "link") => void;
@@ -139,6 +160,9 @@ function initial(): Persisted {
     previewOpen: false,
     theme: "system",
     perComputer: 3,
+    textSize: "default",
+    stepsOpen: false,
+    notify: { needs: true, done: true, failed: true, sound: true, background: true, computers: {} },
   };
 }
 
@@ -149,7 +173,8 @@ export const useApp = create<AppState>()(
       view: "chat",
       turnPrefs: {},
       settingsOpen: false,
-      settingsTab: "machines",
+      settingsTab: "general",
+      computerTab: "general",
       editMachineId: null,
       settingsFocus: null,
       paletteOpen: false,
@@ -255,8 +280,11 @@ export const useApp = create<AppState>()(
       },
       openAdd: (machineId, start) =>
         set({ addOpen: true, addFor: machineId ?? null, addStart: start ?? null, settingsOpen: false, paletteOpen: false }),
-      openSettings: (tab = "machines", editMachineId = null, focus = null) =>
-        set({ settingsOpen: true, settingsTab: tab, editMachineId: editMachineId ?? get().activeMachineId, settingsFocus: focus }),
+      openSettings: (tab = "general", editMachineId = null, focus = null) =>
+        set({
+          settingsOpen: true, settingsTab: tab, editMachineId: editMachineId ?? get().activeMachineId, settingsFocus: focus,
+          computerTab: focus !== null ? "agents" : "general",
+        }),
     }),
     {
       name: "mob.app",
@@ -266,7 +294,7 @@ export const useApp = create<AppState>()(
       partialize: (s): Persisted => ({
         machines: s.machines, activeMachineId: s.activeMachineId, savedSessions: s.savedSessions,
         collapsed: s.collapsed, sidebarOpen: s.sidebarOpen, previewOpen: s.previewOpen, theme: s.theme,
-        perComputer: s.perComputer,
+        perComputer: s.perComputer, textSize: s.textSize, stepsOpen: s.stepsOpen, notify: s.notify,
       }),
     },
   ),

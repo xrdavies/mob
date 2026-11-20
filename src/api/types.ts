@@ -243,6 +243,9 @@ export interface AgentStatus {
   detail?: string;
   /** The command that installs a missing agent. */
   install?: string;
+  /** Its program and version (/health). */
+  bin?: string;
+  version?: string;
 }
 
 export interface SettingsView {
@@ -263,6 +266,9 @@ export interface Health {
   maxRunning?: number;
   features?: string[];
   checks?: Record<string, Check>;
+  agents?: AgentStatus[];
+  /** The maintenance operation in progress, if any. */
+  maintenance?: MaintenanceOp | null;
   /** Where agents work: Codex and Pi use workdir; Claude claudeWorkdir when set. */
   workdir?: string;
   claudeWorkdir?: string;
@@ -334,4 +340,42 @@ export interface Desktops {
   desktops: DesktopInfo[];
   memory?: MemoryInfo;
   disk?: DiskInfo;
+}
+
+/** GET /config (mobd remote maintenance, feature "maintenance"): config.json's editable keys. */
+export interface ConfigView {
+  rev: string;
+  /** The editable keys config.json sets. */
+  values: Record<string, unknown>;
+  /** What the running service uses, programs resolved to full paths. */
+  effective: Record<string, unknown>;
+  editable: string[];
+  /** Set by flags or environment: read-only in the apps. */
+  overridden: string[];
+  pendingRestart: boolean;
+  canRestart?: boolean;
+  configError?: string;
+  lastRejected?: { at: string; reason: string; kept?: string };
+}
+
+export interface MaintenanceOp {
+  id: string;
+  action: "restart" | "upgrade";
+  state: "running" | "done" | "failed" | "rolled-back";
+  step?: string;
+  error?: string;
+  code?: string;
+  version?: string;
+  startedAt: string;
+  finishedAt?: string;
+}
+
+/** GET /maintenance/latest, as `mobd upgrade --check --json`. */
+export interface ReleaseCheck {
+  current: string;
+  latest: string;
+  newer: boolean;
+  notes?: string;
+  canUpgrade: boolean;
+  reason?: string;
 }

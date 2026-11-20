@@ -111,7 +111,7 @@ pub async fn local_setup(workdir: String) -> Result<String, String> {
     blocking(move || imp::setup(&workdir)).await
 }
 
-/// `mobd start|stop|restart` (start with `--login` when asked); returns mobd's output.
+/// `mobd start|stop|restart|uninstall` (start with `--login` when asked); returns mobd's output.
 #[tauri::command]
 pub async fn local_service(action: String, login: bool) -> Result<String, String> {
     blocking(move || imp::service(&action, login)).await
@@ -649,6 +649,15 @@ mod imp {
             ("restart", true) => mobd(&["restart", "--login"], Some(&cwd)),
             ("start", false) | ("restart", false) => mobd(&[action], Some(&cwd)),
             ("stop", _) => mobd(&["stop"], None),
+            // `mobd uninstall` stops mobd and removes its service, keeping ~/.mobd; the binary in the
+            // official location goes too, so this computer reads "Not set up" (desktop-redesign D8).
+            ("uninstall", _) => {
+                let out = mobd(&["uninstall", "--yes"], None)?;
+                if let Ok(dir) = install_dir() {
+                    let _ = std::fs::remove_file(dir.join("mobd"));
+                }
+                Ok(out)
+            }
             _ => Err(format!("unknown service action {action}")),
         }
     }

@@ -4,7 +4,7 @@ import {
 import { useEffect, useRef, useState } from "react";
 import type { Health, Queue } from "@/api/types";
 import { AgentAvatar, runnerLabel } from "@/components/AgentAvatar";
-import { ChecksList } from "@/components/settings/SettingsDialog";
+import { ChecksList } from "@/components/settings/ComputerPage";
 import { SyncStatus } from "@/components/timeline/SyncStatus";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";

@@ -1,6 +1,8 @@
 import { ApiError, authFetch } from "../lib/auth.ts";
 import { parseDesktops } from "../lib/desktops.ts";
-import type { Desktops, Health, MachineSettings, Question, Queue, RunnerInfo, Session, SessionDetail, SettingsView, Upload } from "./types.ts";
+import type {
+  ConfigView, Desktops, Health, MachineSettings, MaintenanceOp, Question, Queue, ReleaseCheck, RunnerInfo, Session, SessionDetail, SettingsView, Upload,
+} from "./types.ts";
 
 async function getJSON<T>(base: string, path: string, init?: RequestInit): Promise<T> {
   const res = await authFetch(base, `${base}${path}`, init);
@@ -21,6 +23,24 @@ export const saveSettings = (base: string, settings: MachineSettings) =>
   getJSON<SettingsView>(base, "/settings", {
     method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(settings),
   });
+
+// Remote maintenance (mobd docs/remote-maintenance.md): config.json keys, restart and upgrade.
+export const fetchConfig = (base: string) => getJSON<ConfigView>(base, "/config");
+
+/** Saves editable keys (null removes one); ApiError 409 when another device saved first, 422 with errors per key. */
+export const saveConfig = (base: string, rev: string, changes: Record<string, unknown>) =>
+  getJSON<{ rev: string; needsRestart: boolean }>(base, "/config", {
+    method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ rev, changes }),
+  });
+
+/** Starts a restart or upgrade; ApiError code "tasks_running" while tasks run. */
+export const startMaintenance = (base: string, action: "restart" | "upgrade", version?: string) =>
+  getJSON<{ operationId: string }>(base, "/maintenance", {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action, version }),
+  });
+
+export const fetchOperation = (base: string, id: string) => getJSON<MaintenanceOp>(base, `/maintenance/${encodeURIComponent(id)}`);
+export const fetchRelease = (base: string) => getJSON<ReleaseCheck>(base, "/maintenance/latest");
 
 export const fetchQueue = (base: string) => getJSON<Queue>(base, "/queue");
 

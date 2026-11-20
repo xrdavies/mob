@@ -313,7 +313,7 @@ function ComputerGroup({ machine, onHandleAction }: { machine: Machine; onHandle
           {!unpaired && <ContextMenuItem onSelect={() => newChatOn(machine.id)}><SquarePen /> New chat</ContextMenuItem>}
           <RouteContextItems machine={machine} />
           <ContextMenuSeparator />
-          <ContextMenuItem onSelect={() => openSettings("machines", machine.id)}><Settings /> Computer settings…</ContextMenuItem>
+          <ContextMenuItem onSelect={() => openSettings("computer", machine.id)}><Settings /> Computer settings…</ContextMenuItem>
         </ContextMenuContent>
       </ContextMenu>
       {route && other && (
@@ -449,7 +449,7 @@ export function Sidebar() {
       </nav>
       <HandleDialog session={handleDialog} onClose={() => setHandleDialog(null)} />
       <div className="border-t px-2 py-2">
-        <Button variant="ghost" size="sm" className="w-full justify-start text-[13px] font-normal" onClick={() => openSettings("machines", null)}>
+        <Button variant="ghost" size="sm" className="w-full justify-start text-[13px] font-normal" onClick={() => openSettings("general")}>
           <Settings className="size-3.5" /> Settings
           <span className="ml-auto text-[11px] text-muted-foreground">{shortcut(",")}</span>
         </Button>

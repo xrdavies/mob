@@ -1,192 +1,284 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, Plus, X } from "lucide-react";
-import { useEffect, useRef, useState, type ComponentProps } from "react";
+import { ArrowLeft, Check, ChevronRight, Copy, Plus, RotateCw, X } from "lucide-react";
+import { useEffect, useState, type ComponentProps } from "react";
 import { fetchSettings, saveSettings } from "@/api/client";
+import type { AgentStatus, SettingsView } from "@/api/types";
+import { AgentAvatar } from "@/components/AgentAvatar";
 import { Spinner } from "@/components/StatusIcon";
 import { Button } from "@/components/ui/button";
-import { Input, Label } from "@/components/ui/input";
+import { IconButton } from "@/components/ui/icon-button";
+import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
+import { useHealth } from "@/hooks/useMachine";
+import { opText, useMaintenance } from "@/hooks/useMaintenance";
 import { ApiError } from "@/lib/auth";
-import { addModel, agentStateLabel, newlyUnguarded, withAgent, type AgentEdit, type SettingsEdit } from "@/lib/turnSettings";
+import { addModel, newlyUnguarded, withAgent, type AgentEdit, type SettingsEdit } from "@/lib/turnSettings";
 import { cn } from "@/lib/utils";
 import { baseUrl, needsPairing, useApp, type Machine } from "@/store/app";
+import { errorText, Group, Page, Row, Segmented } from "./ui";
 
 function Select({ className, ...props }: ComponentProps<"select">) {
-  return <select className={cn("h-8 w-full rounded-md border bg-background px-2 text-[13px] outline-none focus-visible:border-accent", className)} {...props} />;
+  return <select className={cn("h-8 max-w-[240px] rounded-md border bg-background px-2 text-[13px] outline-none focus-visible:border-accent", className)} {...props} />;
 }
 
-const PERMISSIONS = { bypass: "Run without asking", approve: "Ask before commands and edits" } as const;
+const PERMISSIONS: Record<AgentEdit["permissions"], string> = { approve: "Ask before commands and edits", bypass: "Run without asking" };
 
-/**
- * One machine's agents (its mobd's settings.json, shared by every device): default agent, and per
- * agent models, defaults, permissions. Works for any paired machine, not only the active one.
- */
-export function AgentsSection({ machine }: { machine: Machine }) {
-  const base = baseUrl(machine);
-  const focus = useApp((s) => s.settingsFocus);
-  const root = useRef<HTMLElement>(null);
-  const qc = useQueryClient();
-  const enabled = !!base && !needsPairing(machine);
-  const { data: view, error, refetch } = useQuery({ queryKey: ["settings", base], queryFn: () => fetchSettings(base), enabled });
-  const [edit, setEdit] = useState<SettingsEdit | null>(null);
-  const [adding, setAdding] = useState<Record<string, string>>({});
-  const [status, setStatus] = useState<{ kind: "idle" | "saving" | "saved" | "error" | "confirm"; text?: string; agents?: string[] }>({ kind: "idle" });
+const stateText = (a?: AgentStatus) =>
+  !a ? "" : a.state === "ready" ? "Ready" : a.state === "disabled" ? "Off" : a.state === "missing" ? "Not installed"
+    : /log ?in|sign/i.test(a.detail ?? "") ? "Not signed in" : "Not working";
 
-  // Start from mobd's copy, again whenever another device saved.
-  useEffect(() => {
-    if (view && (!edit || edit.rev !== view.settings.rev)) setEdit(structuredClone(view.settings));
-  }, [view]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Opened from a chat's model menu: bring this machine's agent into view.
-  useEffect(() => {
-    if (focus === null || !view) return;
-    const target = (focus && root.current?.querySelector(`[data-agent="${focus}"]`)) || root.current;
-    target?.scrollIntoView({ block: "start", inline: "nearest", behavior: "smooth" });
-    useApp.getState().set({ settingsFocus: null });
-  }, [focus, view]);
-
-  const heading = <h3 className="text-[13px] font-semibold">{machine.name} · Agents</h3>;
-  const note = (text: string, danger = false) => (
-    <section ref={root} className="grid gap-1.5">{heading}<p className={cn("text-xs", danger ? "text-danger" : "text-muted-foreground")}>{text}</p></section>
+/** Restart to apply config.json changes: only while no task runs (mobd remote-maintenance D6). */
+export function RestartBar({ m, name }: { m: ReturnType<typeof useMaintenance>; name: string }) {
+  if (!m.config?.pendingRestart && !m.op) return null;
+  const running = m.op?.state === "running";
+  const failed = m.op && (m.op.state === "failed" || m.op.state === "rolled-back");
+  return (
+    <div className={cn("flex items-center gap-2 rounded-[10px] border px-3 py-2 text-xs",
+      failed ? "border-danger/40 bg-danger/5" : m.config?.pendingRestart ? "border-warning/50 bg-warning/[0.07]" : "bg-background")}>
+      <span className="min-w-0 flex-1">
+        {m.op && (running || !m.config?.pendingRestart) ? opText(m.op)
+          : `Restart mobd on ${name} to apply${m.tasks ? ` · ${m.tasks} task${m.tasks > 1 ? "s" : ""} running` : ""}`}
+      </span>
+      {m.config?.pendingRestart && m.config.canRestart !== false && (
+        <Button size="sm" disabled={running || m.tasks > 0} onClick={() => void m.run("restart")}>
+          {running ? <Spinner className="border-accent-foreground border-t-transparent" /> : <RotateCw className="size-3.5" />} Restart to apply
+        </Button>
+      )}
+    </div>
   );
-  if (needsPairing(machine)) return note(`Pair ${machine.name} again to change its agents.`);
-  if (error) {
-    // fetch rejects with a TypeError when the machine cannot be reached.
-    return error instanceof TypeError
-      ? note(`Connect to ${machine.name} to change its agents.`)
-      : note((error as Error).message, true);
-  }
-  if (!view || !edit) return <section ref={root} className="grid gap-1.5">{heading}<Spinner /></section>;
+}
 
-  const save = async (confirmed = false) => {
-    const risky = newlyUnguarded(view.settings, edit);
-    if (risky.length && !confirmed) return setStatus({ kind: "confirm", agents: risky });
-    setStatus({ kind: "saving" });
+function useSettingsEdit(machine: Machine) {
+  const base = baseUrl(machine);
+  const qc = useQueryClient();
+  const { data: view, error, refetch } = useQuery({ queryKey: ["settings", base], queryFn: () => fetchSettings(base), enabled: !!base && !needsPairing(machine) });
+  const save = async (next: SettingsEdit): Promise<string> => {
     try {
-      const saved = await saveSettings(base, edit);
+      const saved = await saveSettings(base, next);
       qc.setQueryData(["settings", base], saved);
       void qc.invalidateQueries({ queryKey: ["health", base] });
-      setEdit(structuredClone(saved.settings));
-      // The button shows ✓ Saved for a moment, then is greyed out until the next change.
-      setStatus({ kind: "saved" });
-      setTimeout(() => setStatus((s) => (s.kind === "saved" ? { kind: "idle" } : s)), 2000);
+      return "";
     } catch (err) {
       if (err instanceof ApiError && err.code === "settings_changed") {
         await refetch();
-        return setStatus({ kind: "error", text: "Another device changed these settings. They are reloaded; make your change again." });
+        return "Another device changed these settings. They are reloaded; make your change again.";
       }
-      setStatus({ kind: "error", text: err instanceof Error ? err.message : String(err) });
+      return errorText(err);
     }
   };
+  return { view, error, save };
+}
+
+/** One agent: models, defaults and permissions (applied at once), program and settings source (restart). */
+function AgentPage({ machine, name, view, onBack, m, status }: {
+  machine: Machine; name: string; view: SettingsView; onBack: () => void; m: ReturnType<typeof useMaintenance>; status?: AgentStatus;
+}) {
+  const { save } = useSettingsEdit(machine);
+  const [edit, setEdit] = useState<SettingsEdit>(() => structuredClone(view.settings));
+  const [adding, setAdding] = useState("");
+  const [state, setState] = useState<{ kind: "idle" | "saving" | "saved" | "confirm" | "error"; text?: string }>({ kind: "idle" });
+  const [program, setProgram] = useState<string | null>(null);
+  useEffect(() => setEdit(structuredClone(view.settings)), [view.settings.rev]); // eslint-disable-line react-hooks/exhaustive-deps
+  const a = edit.agents[name];
+  const info = view.agents[name];
+  if (!a || !info) return null;
   const changed = JSON.stringify(edit) !== JSON.stringify(view.settings);
-  const label = (name: string) => view.agents[name]?.label ?? name;
-  // An empty default sends none: the agent's own applies.
-  const agentDefault = (value?: string) => (value ? `Agent's default (${value})` : "Agent's default");
+  const commit = async (confirmed = false) => {
+    if (newlyUnguarded(view.settings, edit).length && !confirmed) return setState({ kind: "confirm" });
+    setState({ kind: "saving" });
+    const err = await save(edit);
+    setState(err ? { kind: "error", text: err } : { kind: "saved" });
+    if (!err) setTimeout(() => setState((s) => (s.kind === "saved" ? { kind: "idle" } : s)), 1500);
+  };
+  const binKey = `${name}Bin`;
+  const editable = (key: string) => !!m.config && m.config.editable.includes(key) && !m.config.overridden.includes(key);
+  const effectiveBin = String(m.config?.effective[binKey] ?? status?.bin ?? "");
+  const agentDefault = (v?: string) => (v ? `Agent's default (${v})` : "Agent's default");
 
   return (
-    <section ref={root} className="grid min-w-0 grid-cols-1 content-start gap-4">
-      <div>
-        {heading}
-        <p className="mt-1 text-xs text-muted-foreground">Shared by every device paired with this machine. Each chat keeps the model and effort it started with; change them for one chat in its message box.</p>
-      </div>
-      <Label>
-        Default agent for new chats
-        <Select value={edit.defaultAgent} onChange={(e) => setEdit({ ...edit, defaultAgent: e.target.value })}>
-          {Object.keys(view.agents).map((n) => <option key={n} value={n}>{label(n)}</option>)}
-        </Select>
-      </Label>
-      {Object.entries(view.agents).map(([name, info]) => {
-        const a = edit.agents[name];
-        if (!a) return null;
-        const models = a.models;
-        return (
-          <section key={name} data-agent={name} className="grid min-w-0 grid-cols-1 scroll-mt-2 gap-3 rounded-lg border bg-panel p-3">
-            <h4 className="text-[13px] font-semibold">{label(name)}</h4>
-            <div className="grid min-w-0 grid-cols-1 gap-1.5 text-xs font-medium text-muted-foreground">
-              <span>Models offered</span>
-              <div className="flex flex-wrap gap-1.5">
-                {models.map((m) => (
-                  <span key={m} className="flex items-center gap-1 rounded-full border bg-background py-0.5 pl-2.5 pr-1 font-mono text-[12px] text-foreground">
-                    {m}
-                    <button type="button" aria-label={`Remove ${m}`} className="rounded-full p-0.5 hover:bg-muted"
-                      onClick={() => setEdit(withAgent(edit, name, { models: models.filter((x) => x !== m), ...(a.defaultModel === m ? { defaultModel: "" } : {}) }))}>
-                      <X className="size-3" />
-                    </button>
-                  </span>
-                ))}
-                {models.length === 0 && <span className="font-normal">None listed: chats use the default model.</span>}
-              </div>
-              <form className="flex gap-1.5" onSubmit={(e) => {
-                e.preventDefault();
-                const next = addModel(models, adding[name] ?? "");
-                if (typeof next === "string") return setStatus({ kind: "error", text: next });
-                setEdit(withAgent(edit, name, { models: next }));
-                setAdding({ ...adding, [name]: "" });
-                setStatus({ kind: "idle" });
-              }}>
-                <Input value={adding[name] ?? ""} placeholder="Add a model ID, e.g. gpt-5.4 or claude-opus-5-5" className="font-mono"
-                  onChange={(e) => setAdding({ ...adding, [name]: e.target.value })} />
-                <Button type="submit" variant="secondary" size="sm" disabled={!(adding[name] ?? "").trim()}><Plus className="size-3.5" /> Add</Button>
-              </form>
-            </div>
-            <div className="grid grid-cols-3 gap-3">
-              <Label>
-                Default model
-                <Select value={a.defaultModel} onChange={(e) => setEdit(withAgent(edit, name, { defaultModel: e.target.value }))}>
-                  <option value="">{agentDefault(info.agentDefaultModel)}</option>
-                  {models.map((m) => <option key={m} value={m}>{m}</option>)}
-                </Select>
-              </Label>
-              <Label>
-                Default effort
-                <Select value={a.defaultEffort} onChange={(e) => setEdit(withAgent(edit, name, { defaultEffort: e.target.value }))}>
-                  <option value="">{agentDefault(info.agentDefaultEffort)}</option>
-                  {info.efforts.map((x) => <option key={x} value={x}>{x}</option>)}
-                </Select>
-              </Label>
-              <Label>
-                Permissions
-                <Select value={a.permissions} onChange={(e) => setEdit(withAgent(edit, name, { permissions: e.target.value as AgentEdit["permissions"] }))}>
-                  {Object.entries(PERMISSIONS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-                </Select>
-              </Label>
-            </div>
-          </section>
-        );
-      })}
-      {(view.installed ?? []).some((a) => a.state !== "ready") && (
-        <section className="grid min-w-0 grid-cols-1 gap-2 rounded-lg border bg-panel p-3">
-          <h4 className="text-[13px] font-semibold">Other agents</h4>
-          {(view.installed ?? []).filter((a) => a.state !== "ready").map((a) => (
-            <div key={a.name} className="grid min-w-0 grid-cols-1 gap-1 text-xs">
-              <p><span className="font-medium text-foreground">{a.label}</span> · <span className={a.state === "error" ? "text-danger" : "text-muted-foreground"}>{agentStateLabel(a.state)}</span></p>
-              {a.detail && <p className="break-all text-muted-foreground">{a.detail}</p>}
-              {a.install && (
-                <div className="flex items-center gap-2">
-                  <code className="min-w-0 flex-1 truncate rounded border bg-background px-2 py-1 font-mono text-[11.5px]">{a.install}</code>
-                  <Button variant="ghost" size="sm" onClick={() => void navigator.clipboard.writeText(a.install!)}>Copy</Button>
-                </div>
-              )}
-            </div>
-          ))}
-          <p className="text-[11.5px] text-muted-foreground">Install on {machine.name}, add the agent to <code className="font-mono">runners</code> in mobd&apos;s config.json, then run <code className="font-mono">mobd restart</code>.</p>
-        </section>
-      )}
-      {status.kind === "confirm" && (
-        <div className="grid min-w-0 grid-cols-1 gap-2 rounded-lg border border-warning/50 bg-warning/10 p-3 text-xs">
-          <p><strong>{status.agents!.map(label).join(", ")}</strong> will run commands and edit files on {machine.name} without asking you first.</p>
+    <Page title={
+      <span className="flex items-center gap-2">
+        <IconButton label="All agents" onClick={onBack}><ArrowLeft /></IconButton>
+        <AgentAvatar runner={name} size="lg" />
+        <span className="grid">
+          <span>{info.label}</span>
+          <span className="text-xs font-normal text-muted-foreground">{stateText(status)}{status?.version && ` · ${status.version}`}</span>
+        </span>
+      </span>
+    }>
+      <Group title="Models" footer="New chats start with these; each chat keeps its own.">
+        <div className="grid gap-2 px-3 py-2.5">
+          <div className="flex flex-wrap gap-1.5">
+            {a.models.map((x) => (
+              <span key={x} className="flex items-center gap-1 rounded-full border bg-panel py-0.5 pl-2.5 pr-1 font-mono text-[12px]">
+                {x}
+                <button type="button" aria-label={`Remove ${x}`} className="rounded-full p-0.5 hover:bg-muted"
+                  onClick={() => setEdit(withAgent(edit, name, { models: a.models.filter((y) => y !== x), ...(a.defaultModel === x ? { defaultModel: "" } : {}) }))}>
+                  <X className="size-3" />
+                </button>
+              </span>
+            ))}
+            {!a.models.length && <span className="text-xs text-muted-foreground">None listed: chats use the agent's default.</span>}
+          </div>
+          <form className="flex gap-1.5" onSubmit={(e) => {
+            e.preventDefault();
+            const next = addModel(a.models, adding);
+            if (typeof next === "string") return setState({ kind: "error", text: next });
+            setEdit(withAgent(edit, name, { models: next }));
+            setAdding("");
+          }}>
+            <Input value={adding} placeholder="Model ID" className="h-8 font-mono" onChange={(e) => setAdding(e.target.value)} />
+            <IconButton label="Add model" type="submit" disabled={!adding.trim()}><Plus /></IconButton>
+          </form>
+        </div>
+        <Row label="Default model">
+          <Select value={a.defaultModel} onChange={(e) => setEdit(withAgent(edit, name, { defaultModel: e.target.value }))}>
+            <option value="">{agentDefault(info.agentDefaultModel)}</option>
+            {a.models.map((x) => <option key={x} value={x}>{x}</option>)}
+          </Select>
+        </Row>
+        <Row label="Default effort">
+          <Select value={a.defaultEffort} onChange={(e) => setEdit(withAgent(edit, name, { defaultEffort: e.target.value }))}>
+            <option value="">{agentDefault(info.agentDefaultEffort)}</option>
+            {info.efforts.map((x) => <option key={x} value={x}>{x}</option>)}
+          </Select>
+        </Row>
+      </Group>
+      <Group title="Permissions">
+        <Row label="Commands and file edits">
+          <Segmented<AgentEdit["permissions"]> label="Permissions" value={a.permissions} onChange={(v) => setEdit(withAgent(edit, name, { permissions: v }))}
+            options={[{ value: "approve", label: "Ask first" }, { value: "bypass", label: "Run without asking" }]} />
+        </Row>
+      </Group>
+      {state.kind === "confirm" && (
+        <div className="grid gap-2 rounded-[10px] border border-warning/50 bg-warning/10 p-3 text-xs">
+          <p><strong>{info.label}</strong> will run commands and edit files on {machine.name} without asking you first.</p>
           <div className="flex gap-2">
-            <Button size="sm" onClick={() => void save(true)}>Allow and save</Button>
-            <Button size="sm" variant="ghost" onClick={() => setStatus({ kind: "idle" })}>Cancel</Button>
+            <Button size="sm" onClick={() => void commit(true)}>Allow and save</Button>
+            <Button size="sm" variant="ghost" onClick={() => setState({ kind: "idle" })}>Cancel</Button>
           </div>
         </div>
       )}
       <div className="flex items-center gap-2">
-        <Button className={cn(status.kind === "saved" && "disabled:opacity-100 text-success")} disabled={!changed || status.kind === "saving" || status.kind === "saved"} onClick={() => void save()}>
-          {status.kind === "saving" ? <><Spinner /> Saving…</> : status.kind === "saved" ? <><Check className="size-3.5" /> Saved</> : "Save"}
+        <Button disabled={!changed || state.kind === "saving" || state.kind === "saved"} onClick={() => void commit()}>
+          {state.kind === "saving" ? <><Spinner /> Saving…</> : state.kind === "saved" ? <><Check className="size-3.5" /> Saved</> : "Save"}
         </Button>
-        <Button variant="ghost" disabled={!changed || status.kind === "saving"} onClick={() => { setEdit(structuredClone(view.settings)); setStatus({ kind: "idle" }); }}>Discard changes</Button>
-        {status.kind === "error" && status.text && <span className="text-xs text-danger">{status.text}</span>}
+        <Button variant="ghost" disabled={!changed} onClick={() => { setEdit(structuredClone(view.settings)); setState({ kind: "idle" }); }}>Discard</Button>
+        {state.kind === "error" && <span className="text-xs text-danger">{state.text}</span>}
       </div>
-    </section>
+
+      <Group title="Program" footer={!m.supported ? `Update mobd on ${machine.name} to change these here.` : undefined}>
+        <Row label="Program" detail={program === null ? <span className="font-mono">{effectiveBin || "Not found"}</span> : undefined}>
+          {program === null ? (
+            <IconButton label="Change program" disabled={!editable(binKey)} onClick={() => setProgram(String(m.config?.values[binKey] ?? effectiveBin))}>
+              <ChevronRight />
+            </IconButton>
+          ) : (
+            <form className="flex gap-1.5" onSubmit={(e) => {
+              e.preventDefault();
+              void m.save({ [binKey]: program.trim() || null }).then((ok) => ok && setProgram(null));
+            }}>
+              <Input autoFocus value={program} spellCheck={false} className="h-8 w-64 font-mono text-xs" onChange={(e) => setProgram(e.target.value)} />
+              <Button size="sm" type="submit">Save</Button>
+              <Button size="sm" variant="ghost" onClick={() => setProgram(null)}>Cancel</Button>
+            </form>
+          )}
+        </Row>
+        {name === "claude" && (
+          <Row label="Claude settings it loads" detail="Your personal ~/.claude settings, or only the project's">
+            <Segmented label="Claude settings it loads" value={String(m.config?.effective.claudeSettingSources ?? "project")}
+              onChange={(v) => editable("claudeSettingSources") && void m.save({ claudeSettingSources: v })}
+              options={[{ value: "project", label: "Project" }, { value: "all", label: "All" }]} />
+          </Row>
+        )}
+        {status?.detail && (
+          <Row label="Check" detail={status.detail}>
+            <span className={cn("text-xs", status.state === "ready" ? "text-success" : "text-warning")}>{stateText(status)}</span>
+          </Row>
+        )}
+      </Group>
+      {m.error && <p className="text-xs text-danger">{m.error}</p>}
+      <RestartBar m={m} name={machine.name} />
+    </Page>
+  );
+}
+
+/**
+ * A computer's agents (docs/desktop-redesign, Agents tab): the list with each agent's state and on/off,
+ * the default for new chats, and a page per agent. Works for any paired computer.
+ */
+export function AgentsTab({ machine }: { machine: Machine }) {
+  const focus = useApp((s) => s.settingsFocus);
+  const { data: health } = useHealth(machine);
+  const { view, error, save } = useSettingsEdit(machine);
+  const m = useMaintenance(machine);
+  const [open, setOpen] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState("");
+  // Opened from a chat's model menu: that agent's page.
+  useEffect(() => {
+    if (focus === null) return;
+    if (focus) setOpen(focus);
+    useApp.getState().set({ settingsFocus: null });
+  }, [focus]);
+
+  if (needsPairing(machine)) return <p className="text-xs text-muted-foreground">Pair {machine.name} again to change its agents.</p>;
+  if (error) return <p className="text-xs text-danger">{error instanceof TypeError ? `${machine.name} is not reachable.` : errorText(error)}</p>;
+  if (!view) return <Spinner />;
+
+  const statuses = new Map((health?.agents ?? view.installed ?? []).map((a) => [a.name, a]));
+  if (open && view.agents[open]) {
+    return <AgentPage machine={machine} name={open} view={view} m={m} status={statuses.get(open)} onBack={() => setOpen(null)} />;
+  }
+  const runners = (m.config?.effective.runners as string[] | undefined) ?? [...statuses.values()].filter((a) => a.enabled).map((a) => a.name);
+  const canToggle = !!m.config && m.config.editable.includes("runners") && !m.config.overridden.includes("runners");
+  const names = [...new Set([...Object.keys(view.agents), ...statuses.keys()])];
+
+  return (
+    <div className="grid content-start gap-5">
+      <Group title="Agents" footer={!m.supported ? `Update mobd on ${machine.name} to turn agents on or off here.` : undefined}>
+        {names.map((name) => {
+          const s = view.settings.agents[name];
+          const st = statuses.get(name);
+          const label = view.agents[name]?.label ?? st?.label ?? name;
+          const on = runners.includes(name);
+          const sub = s ? [s.defaultModel || "Default model", s.defaultEffort, PERMISSIONS[s.permissions]].filter(Boolean).join(" · ") : st?.detail;
+          return (
+            <div key={name} className="flex min-h-12 items-center gap-3 px-3 py-2">
+              <AgentAvatar runner={name} size="lg" />
+              <button type="button" disabled={!view.agents[name]} onClick={() => setOpen(name)} className="grid min-w-0 flex-1 text-left disabled:cursor-default">
+                <span className="text-[13px] font-medium">{label}</span>
+                <span className="truncate text-[11.5px] text-muted-foreground">{sub}</span>
+              </button>
+              <span className={cn("shrink-0 text-xs", st?.state === "ready" ? "text-success" : "text-muted-foreground")}>{stateText(st)}</span>
+              <Switch checked={on} disabled={!canToggle || (!on && st?.state === "missing")} aria-label={`${label} on`}
+                onCheckedChange={(v) => {
+                  const next = v ? [...runners, name] : runners.filter((r) => r !== name);
+                  if (next.length) void m.save({ runners: next });
+                }} />
+              {view.agents[name] && <IconButton label={`${label} settings`} onClick={() => setOpen(name)}><ChevronRight /></IconButton>}
+            </div>
+          );
+        })}
+      </Group>
+      {[...statuses.values()].filter((a) => a.state === "missing" && a.install).map((a) => (
+        <Group key={a.name} title={`Install ${a.label}`}>
+          <Row label={<code className="font-mono text-xs">{a.install}</code>}>
+            <IconButton label="Copy" onClick={() => void navigator.clipboard.writeText(a.install!)}><Copy /></IconButton>
+          </Row>
+        </Group>
+      ))}
+      <Group title="New chats">
+        <Row label="Default agent">
+          <Select value={view.settings.defaultAgent} onChange={(e) => {
+            setSaveError("");
+            void save({ ...view.settings, defaultAgent: e.target.value }).then(setSaveError);
+          }}>
+            {Object.keys(view.agents).filter((n) => runners.includes(n) || n === view.settings.defaultAgent).map((n) => <option key={n} value={n}>{view.agents[n]!.label}</option>)}
+          </Select>
+        </Row>
+      </Group>
+      {(saveError || m.error) && <p className="text-xs text-danger">{saveError || m.error}</p>}
+      <RestartBar m={m} name={machine.name} />
+    </div>
   );
 }
