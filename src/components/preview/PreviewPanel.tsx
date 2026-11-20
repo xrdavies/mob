@@ -1,4 +1,4 @@
-import { ChevronDown, Expand, Gauge, Hand, Moon, RefreshCw, Shrink, Volume2, VolumeX } from "lucide-react";
+import { ChevronDown, Expand, Gauge, Hand, Moon, Play, RefreshCw, Shrink, Volume2, VolumeX } from "lucide-react";
 import { IconButton } from "@/components/ui/icon-button";
 
 const SLEEP_AFTER_MS = 2 * 60_000;
@@ -53,8 +53,10 @@ function ClickMarker({ stage, ratio }: { stage: HTMLElement | null; ratio: numbe
 }
 
 /** The screen's last picture; with onError, the reason it is missing goes to the caller instead. */
-function Snapshot({ base, sessionId, width, onRatio, onError }: {
+function Snapshot({ base, sessionId, width, onRatio, onError, interval = 15_000 }: {
   base: string; sessionId?: string; width: number; onRatio: (r: number) => void; onError?: (reason: string) => void;
+  /** How often to look again; an unchanged screen costs a 304. */
+  interval?: number;
 }) {
   const [tick, setTick] = useState(0);
   // As wide as the panel shows it; an unchanged screen costs a 304, not a download.
@@ -68,10 +70,10 @@ function Snapshot({ base, sessionId, width, onRatio, onError }: {
   const reason = state === "error" ? (image.code === "no_desktop" ? NO_DESKTOP : error.replace(/^screen unavailable: /, "")) : "";
   useEffect(() => onError?.(reason), [reason]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
-    // While the screen sleeps the picture stays fairly current; paused while the window is hidden.
-    const t = setInterval(() => document.visibilityState === "visible" && setTick((n) => n + 1), 15_000);
+    // Paused while the window is hidden.
+    const t = setInterval(() => document.visibilityState === "visible" && setTick((n) => n + 1), interval);
     return () => clearInterval(t);
-  }, []);
+  }, [interval]);
   return (
     <>
       <img
@@ -321,6 +323,10 @@ export function ScreenView({ machine, health }: { machine: Machine; health?: Hea
   const control = connected && state.control;
   const bars = signalBars(streamState.loss, streamState.readout?.rttMs);
   const waking = state.status === "connecting";
+  const failed = state.status === "error";
+  const failure = failed ? (state.detail === NO_DESKTOP ? NO_DESKTOP : state.detail) : "";
+  // A readable snapshot rather than the dimmed one: expanded, or the live view failed.
+  const sharp = fullscreen || failed;
   const rate = connected && state.width > 0 ? (streamState.readout ? rateText(streamState.readout) : `${state.width}×${state.height}`) : "";
   const tool = fullscreen ? "text-white/85 hover:bg-white/10 hover:text-white" : "text-white/90 hover:bg-white/15 hover:text-white";
 
@@ -348,7 +354,7 @@ export function ScreenView({ machine, health }: { machine: Machine; health?: Hea
       onDoubleClick={(e) => {
         // While controlling, double-clicks belong to the other computer.
         if (control || (e.target as HTMLElement).closest("button")) return;
-        if (connected) set({ fullscreen: !fullscreen });
+        if (connected || (fullscreen && canSnapshot)) set({ fullscreen: !fullscreen });
       }}
       className={cn(
         "group/screen relative overflow-hidden bg-[#0d0e12]",
@@ -362,20 +368,47 @@ export function ScreenView({ machine, health }: { machine: Machine; health?: Hea
       <canvas ref={canvas} tabIndex={-1} aria-label={`${machine.name} screen, live`}
         className={cn("absolute inset-0 size-full object-contain outline-none", (!connected || streamState.element !== "canvas") && "invisible", control && "touch-none")} />
       {!connected && canSnapshot && (
-        <div className="absolute inset-0 opacity-45">
-          <Snapshot base={chatState.baseUrl} sessionId={sessionId} width={stage.current?.clientWidth ?? 0} onRatio={setRatio} onError={setSnapError} />
+        // Asleep in the panel: the last picture, dimmed. Expanded, or when the live view cannot connect:
+        // a full-size picture every few seconds, readable and light on a weak network.
+        <div className={cn("absolute inset-0", !sharp && "opacity-45")}>
+          <Snapshot base={chatState.baseUrl} sessionId={sessionId} width={stage.current?.clientWidth ?? 0} onRatio={setRatio}
+            interval={sharp ? 4000 : 15_000} onError={fullscreen ? undefined : setSnapError} />
         </div>
       )}
-      {!connected && (
-        // Asleep: the last picture, dimmed; a click wakes it.
+      {!connected && !fullscreen && !failed && (
+        // Asleep: a click wakes it.
         <button type="button" disabled={waking || !hasDesktop} onClick={() => connect()}
           className="absolute inset-0 flex flex-col items-center justify-center gap-1 p-4 text-center text-white disabled:cursor-default">
           {waking ? <Spinner className="border-white border-t-transparent" /> : <Moon className="size-4 text-white/80" />}
           <span className="text-[13px] font-semibold">{waking ? "Waking…" : hasDesktop ? "Asleep" : "No screen yet"}</span>
           <span className="max-w-[90%] text-[11px] text-white/65">
-            {!hasDesktop ? NO_DESKTOP : state.status === "error" ? (state.detail === NO_DESKTOP ? NO_DESKTOP : state.detail) : waking ? "" : snapError ? `Click to wake · ${snapError}` : "Click to wake"}
+            {!hasDesktop ? NO_DESKTOP : waking ? "" : snapError ? `Click to wake · ${snapError}` : "Click to wake"}
           </span>
         </button>
+      )}
+      {!connected && !fullscreen && failed && (
+        // The live view did not connect: snapshots instead, and a click tries again.
+        <button type="button" onClick={() => connect()} className="absolute inset-0 flex flex-col justify-start text-left text-white">
+          <span className="w-full bg-black/70 px-2.5 py-1.5 text-[11px] leading-snug backdrop-blur">
+            <span className="font-semibold">Live view unavailable</span>{failure && ` · ${failure}`}
+            <span className="block text-white/70">{canSnapshot ? "Showing snapshots · click to try again" : "Click to try again"}</span>
+          </span>
+        </button>
+      )}
+      {!connected && !fullscreen && canSnapshot && !waking && (
+        <IconButton label="Open in the window" className="absolute right-1.5 top-1.5 size-7 bg-black/45 text-white/90 hover:bg-black/65 hover:text-white"
+          onClick={() => set({ fullscreen: true })}>
+          <Expand />
+        </IconButton>
+      )}
+      {!connected && fullscreen && (waking || failed || !canSnapshot) && (
+        <div className="pointer-events-none absolute inset-x-0 top-3 flex justify-center">
+          <span className="flex max-w-[80%] items-center gap-2 rounded-md bg-black/70 px-3 py-1.5 text-xs text-white backdrop-blur">
+            {waking ? <><Spinner className="border-white border-t-transparent" /> Waking…</>
+              : failed ? <>Live view unavailable{failure && `: ${failure}`}{canSnapshot && " · showing snapshots"}</>
+                : hasDesktop ? "No snapshot from this computer" : NO_DESKTOP}
+          </span>
+        </div>
       )}
       <ClickMarker stage={stage.current} ratio={ratio} />
       {connected && !control && !fullscreen && (
@@ -416,7 +449,21 @@ export function ScreenView({ machine, health }: { machine: Machine; health?: Hea
               <span className="flex items-center gap-1.5 text-[11px] tabular-nums text-white/60"><SignalBars bars={bars} />{rate}</span>
             </Tooltip>
           )}
-          <div data-tauri-drag-region className="flex h-full flex-1 items-center gap-0.5 pl-2">{connected && tools}</div>
+          {!connected && canSnapshot && <span className="text-[11px] text-white/60">Snapshot</span>}
+          <div data-tauri-drag-region className="flex h-full flex-1 items-center gap-0.5 pl-2">
+            {connected ? tools : (
+              <>
+                <Button size="sm" variant="ghost" disabled={waking || !hasDesktop} onClick={() => connect()} className={cn("h-7 gap-1.5 px-2 text-xs", tool)}>
+                  {waking ? <Spinner className="border-white border-t-transparent" /> : <Play className="size-3.5" />} Go live
+                </Button>
+                <Button size="sm" variant="ghost" disabled={waking || !hasDesktop} onClick={takeControl} className={cn("h-7 gap-1.5 px-2 text-xs", tool)}>
+                  <Hand className="size-3.5" /> Take control
+                </Button>
+                <span data-tauri-drag-region className="h-full flex-1" />
+                <QualityMenu machine={machine} dark />
+              </>
+            )}
+          </div>
           {!connected && (
             <IconButton label="Back to the panel" className={tool} onClick={() => set({ fullscreen: false })}><Shrink /></IconButton>
           )}
