@@ -731,9 +731,14 @@ class StreamController {
       on("contextmenu", (e) => this.state.control && e.preventDefault()),
       on("keydown", (e) => {
         if (!this.state.control) return;
-        // Keys belong to the office computer, including Esc and the app's own shortcuts.
+        // Keys belong to the other computer, including the app's own shortcuts; a plain Esc releases
+        // control (docs/desktop-redesign D6), Shift-Esc sends Esc there.
         e.preventDefault();
         e.stopPropagation();
+        if (e.key === "Escape" && !e.shiftKey && !e.metaKey && !e.ctrlKey && !e.altKey) {
+          this.setControl(false);
+          return;
+        }
         if (e.isComposing || e.key === "Process") return;
         if (!e.code || e.code === "Unidentified") {
           if ([...e.key].length === 1) this.send("input", [{ t: "text", text: e.key }]);

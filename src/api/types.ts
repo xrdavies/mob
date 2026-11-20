@@ -263,6 +263,9 @@ export interface Health {
   maxRunning?: number;
   features?: string[];
   checks?: Record<string, Check>;
+  /** Where agents work: Codex and Pi use workdir; Claude claudeWorkdir when set. */
+  workdir?: string;
+  claudeWorkdir?: string;
 }
 
 export interface Queue {

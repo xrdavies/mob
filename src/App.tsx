@@ -6,7 +6,7 @@ import { Toaster } from "sonner";
 import { supports } from "@/api/client";
 import { CommandPalette } from "@/components/CommandPalette";
 import { Composer } from "@/components/composer/Composer";
-import { ActivityPanel, PreviewPanel } from "@/components/preview/PreviewPanel";
+import { SidePanel } from "@/components/panel/SidePanel";
 import { Spinner } from "@/components/StatusIcon";
 import { isLocal } from "@/lib/machines";
 import { connectLocal } from "@/store/local";
@@ -249,9 +249,7 @@ export default function App() {
             <Bare><NoMachine /></Bare>
           )}
           {/* Closed means unmounted: no snapshots and no live view connection, as in the mobile apps. */}
-          {machine && previewOpen && view === "chat" && !needsPairing(machine) && (isLocal(machine)
-            ? <ActivityPanel health={health.data} queue={queue} />
-            : <PreviewPanel machine={machine} health={health.data} queue={queue} />)}
+          {machine && previewOpen && view === "chat" && !needsPairing(machine) && <SidePanel machine={machine} health={health.data} />}
         </div>
       </div>
       <SettingsDialog />

@@ -1,17 +1,18 @@
-import { ChevronDown, Eye, Expand, Gauge, MousePointer2, Power, RefreshCw, Shrink, Volume2, VolumeX } from "lucide-react";
+import { ChevronDown, Expand, Gauge, Hand, Moon, RefreshCw, Shrink, Volume2, VolumeX } from "lucide-react";
+import { IconButton } from "@/components/ui/icon-button";
+
+const SLEEP_AFTER_MS = 2 * 60_000;
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { screenUrl, sessionDesktops, supports } from "@/api/client";
-import type { Health, Queue } from "@/api/types";
-import { activityIcon } from "@/components/timeline/activity";
-import { Spinner, StatusIcon } from "@/components/StatusIcon";
+import type { Health } from "@/api/types";
+import { Spinner } from "@/components/StatusIcon";
 import { isTauri } from "@/lib/tauri";
 import { Button } from "@/components/ui/button";
-import { Kbd } from "@/components/ui/kbd";
-import { isMac, shortcut } from "@/lib/platform";
+import { isMac } from "@/lib/platform";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuLabel, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger } from "@/components/ui/menu";
 import { Tooltip } from "@/components/ui/tooltip";
 import { useAuthedImage } from "@/hooks/useAuthedImage";
-import { chat, useChat } from "@/hooks/useChat";
+import { useChat } from "@/hooks/useChat";
 import { NO_DESKTOP } from "@/lib/desktops";
 import { latestClick, screenGeometry } from "@/lib/timeline";
 import { QUALITIES, rateText, readoutText, signalBars, stream, useStream, type Quality } from "@/lib/stream";
@@ -51,7 +52,10 @@ function ClickMarker({ stage, ratio }: { stage: HTMLElement | null; ratio: numbe
   );
 }
 
-function Snapshot({ base, sessionId, width, onRatio }: { base: string; sessionId?: string; width: number; onRatio: (r: number) => void }) {
+/** The screen's last picture; with onError, the reason it is missing goes to the caller instead. */
+function Snapshot({ base, sessionId, width, onRatio, onError }: {
+  base: string; sessionId?: string; width: number; onRatio: (r: number) => void; onError?: (reason: string) => void;
+}) {
   const [tick, setTick] = useState(0);
   // As wide as the panel shows it; an unchanged screen costs a 304, not a download.
   const image = useAuthedImage(base, width ? screenUrl(base, devicePixels(width, window.devicePixelRatio), 65, sessionId) : null, tick);
@@ -61,9 +65,11 @@ function Snapshot({ base, sessionId, width, onRatio }: { base: string; sessionId
   const state = error ? "error" : image.src ? "ok" : "loading";
   const at = image.at ? new Date(image.at).toLocaleTimeString() : "";
   const asleep = image.desktopState === "asleep";
+  const reason = state === "error" ? (image.code === "no_desktop" ? NO_DESKTOP : error.replace(/^screen unavailable: /, "")) : "";
+  useEffect(() => onError?.(reason), [reason]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
-    // Every few seconds while the panel is open; paused while the window is hidden.
-    const t = setInterval(() => document.visibilityState === "visible" && setTick((n) => n + 1), 4000);
+    // While the screen sleeps the picture stays fairly current; paused while the window is hidden.
+    const t = setInterval(() => document.visibilityState === "visible" && setTick((n) => n + 1), 15_000);
     return () => clearInterval(t);
   }, []);
   return (
@@ -78,12 +84,12 @@ function Snapshot({ base, sessionId, width, onRatio }: { base: string; sessionId
         }}
         onError={() => setUndecodable(image.src)}
       />
-      {state === "error" && (
+      {state === "error" && !onError && (
         <p className="absolute inset-0 flex items-center justify-center p-4 text-center text-xs text-muted-foreground">
           {image.code === "no_desktop" ? NO_DESKTOP : `Snapshot unavailable: ${error.replace(/^screen unavailable: /, "")}`}
         </p>
       )}
-      {state === "ok" && (
+      {state === "ok" && !onError && (
         <>
           {asleep && (
             <span className="absolute left-2 top-2 rounded bg-black/65 px-2 py-0.5 text-[10px] font-medium text-white/90 backdrop-blur">
@@ -172,87 +178,8 @@ function SignalBars({ bars }: { bars: 1 | 2 | 3 }) {
   );
 }
 
-/** View/Control switch for the full-size live view. */
-function ModeSwitch({ control, canControl, onChange }: { control: boolean; canControl: boolean; onChange: (control: boolean) => void }) {
-  const item = "flex h-6 items-center gap-1 rounded px-2 text-[11.5px] font-medium transition-colors disabled:opacity-40";
-  return (
-    <div role="radiogroup" aria-label="Live view mode" className="flex rounded-md bg-white/10 p-0.5">
-      <button type="button" role="radio" aria-checked={!control} onClick={() => onChange(false)}
-        className={cn(item, !control ? "bg-white/90 text-black" : "text-white/70 hover:text-white")}>
-        <Eye className="size-3.5" /> View
-      </button>
-      <Tooltip content={canControl ? "Send your mouse and keyboard to the office computer" : "Control is not available on this live view yet"}>
-        <span>
-          <button type="button" role="radio" aria-checked={control} disabled={!canControl} onClick={() => onChange(true)}
-            className={cn(item, control ? "bg-warning text-black" : "text-white/70 hover:text-white")}>
-            <MousePointer2 className="size-3.5" /> Control
-          </button>
-        </span>
-      </Tooltip>
-    </div>
-  );
-}
-
-function Steps() {
-  const chatState = useChat();
-  const task = chatState.currentTask;
-  const steps = task ? chatState.activities.filter((a) => a.taskId === task.id && a.kind !== "notice") : [];
-  if (!steps.length) return null;
-  return (
-    <section>
-      <h3 className="mb-1 px-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Steps · this turn</h3>
-      <ol className="grid grid-cols-[minmax(0,1fr)] gap-px">
-        {steps.slice(-30).map((a) => {
-          const Icon = activityIcon(a);
-          return (
-            <li key={a.id}>
-              <button
-                type="button"
-                onClick={() => document.getElementById(`act-${a.id}`)?.scrollIntoView({ block: "center", behavior: "smooth" })}
-                className="flex h-6 w-full items-center gap-2 rounded px-1 text-left text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
-              >
-                {a.status === "running" ? <Spinner className="size-3" /> : <Icon className={cn("size-3", a.status === "failed" && "text-danger")} />}
-                <span className="truncate">{a.title}</span>
-              </button>
-            </li>
-          );
-        })}
-      </ol>
-    </section>
-  );
-}
-
-/** Turns running or waiting on the office computer. With conversation desktops (Linux) they are not
- *  on the desktop shown above, so the list is not called a desktop queue and marks the open chat. */
-function QueueList({ queue, perSession }: { queue?: Queue; perSession: boolean }) {
-  const chatState = useChat();
-  const rows = [...(queue?.running ?? []), ...(queue?.queued ?? [])];
-  if (!rows.length) return null;
-  const title = (sessionId: string) => chatState.sessions.find((s) => s.id === sessionId)?.title ?? "Conversation";
-  return (
-    <section>
-      <h3 className="mb-1 px-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{perSession ? "Running on this computer" : "Desktop queue"}</h3>
-      <ul className="grid grid-cols-[minmax(0,1fr)] gap-px">
-        {rows.map((t) => (
-          <li key={t.id}>
-            <button
-              type="button"
-              onClick={() => void chat.open(t.sessionId)}
-              className={cn("flex h-7 w-full items-center gap-2 rounded px-1 text-left text-xs hover:bg-muted",
-                perSession && t.sessionId === chatState.sessionId && "bg-muted font-medium")}
-            >
-              <StatusIcon status={t.status} position={t.queuePosition} />
-              <span className="min-w-0 flex-1 truncate">{title(t.sessionId)}</span>
-              <span className="text-muted-foreground">{t.status === "running" ? "now" : `#${t.queuePosition}`}</span>
-            </button>
-          </li>
-        ))}
-      </ul>
-    </section>
-  );
-}
-
-export function PreviewPanel({ machine, health, queue }: { machine: Machine; health?: Health; queue?: Queue }) {
+/** Another computer's screen (docs/desktop-redesign D6): asleep until clicked, then live; Take control. */
+export function ScreenView({ machine, health }: { machine: Machine; health?: Health }) {
   const video = useRef<HTMLVideoElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
   const stage = useRef<HTMLDivElement>(null);
@@ -270,25 +197,26 @@ export function PreviewPanel({ machine, health, queue }: { machine: Machine; hea
   const sessionId = perSession ? chatState.sessionId ?? undefined : undefined;
   const hasDesktop = !perSession || !!sessionId;
   const canSnapshot = supports(health, "screen") && !connected && hasDesktop;
-  const canControl = connected;
   const live = stream;
-  const latest = running ? chatState.activities.filter((a) => a.taskId === chatState.currentTask?.id && a.kind !== "notice").at(-1) : undefined;
 
-  // Disconnect when the machine changes; reconnect when the open conversation changes while connected.
+  // The screen sleeps when the computer or the open conversation changes (docs/desktop-redesign D6).
   useEffect(() => () => stream.disconnect(), [machine.id]);
-  const prevSessionId = useRef(sessionId);
+  const openId = chatState.sessionId;
+  const prevOpenId = useRef(openId);
   useEffect(() => {
-    if (prevSessionId.current === sessionId) return;
-    prevSessionId.current = sessionId;
-    if (perSession && (state.status === "connected" || state.status === "connecting")) {
-      if (sessionId) reconnect.current(state.control);
-      else stream.disconnect();
-    }
-  }, [sessionId, perSession, state.status, state.control]);
-  // Only the full-size view can control; the thumbnail always just watches.
+    if (prevOpenId.current === openId) return;
+    prevOpenId.current = openId;
+    if (stream.state.status === "connected" || stream.state.status === "connecting") stream.disconnect();
+  }, [openId]);
+  // ...and after two minutes without anything happening: no agent step, no pointer over it, no control.
+  const steps = chatState.activities.length;
+  const [touched, setTouched] = useState(0);
+  const [snapError, setSnapError] = useState("");
   useEffect(() => {
-    if (!fullscreen) stream.setControl(false);
-  }, [fullscreen]);
+    if (state.status !== "connected" || state.control) return;
+    const t = setTimeout(() => stream.disconnect(), SLEEP_AFTER_MS);
+    return () => clearTimeout(t);
+  }, [state.status, state.control, steps, touched, running]);
   useEffect(() => {
     if (state.width && state.height) setRatio(state.width / state.height);
   }, [state.width, state.height]);
@@ -326,12 +254,10 @@ export function PreviewPanel({ machine, health, queue }: { machine: Machine; hea
     if (stream.state.status === "connected") reconnect.current(stream.state.control);
   }, [quality]);
   const wasFullscreen = useRef(fullscreen);
-  const controlAfterResize = useRef(false);
   useEffect(() => {
     if (wasFullscreen.current === fullscreen) return;
     wasFullscreen.current = fullscreen;
-    const control = fullscreen && controlAfterResize.current;
-    controlAfterResize.current = false;
+    const control = stream.state.control;
     if (stream.state.status !== "connected") return;
     // With resize, the stage's resize observer refits the stream; only control is left to take.
     const raf = requestAnimationFrame(() => (canResize ? control && stream.setControl(true) : reconnect.current(control)));
@@ -366,18 +292,10 @@ export function PreviewPanel({ machine, health, queue }: { machine: Machine; hea
     const ws = streamState.transport === "WebSocket";
     if (ws !== !!machine.liveWebSocket) setLiveWebSocket(machine.id, ws);
   }, [streamState.status, streamState.transport]); // eslint-disable-line react-hooks/exhaustive-deps
-  // Shift-Command-C: expand (connecting if needed) and take control in one step. The View/Control
-  // switch in the expanded toolbar is the only other way in; the panel itself only watches.
+  // Take control (also ⇧⌘C): wakes the screen if needed; Esc or Release gives it back.
   const takeControl = () => {
-    if (!connected) {
-      set({ fullscreen: true });
-      requestAnimationFrame(() => reconnect.current(true));
-    } else if (fullscreen) {
-      live.setControl(true);
-    } else {
-      controlAfterResize.current = true;
-      set({ fullscreen: true });
-    }
+    if (!connected) reconnect.current(true);
+    else live.setControl(true);
   };
   const takeControlRef = useRef(takeControl);
   takeControlRef.current = takeControl;
@@ -402,149 +320,116 @@ export function PreviewPanel({ machine, health, queue }: { machine: Machine; hea
   }, [liveConnect]);
   const control = connected && state.control;
   const bars = signalBars(streamState.loss, streamState.readout?.rttMs);
-  const dot = { idle: "bg-muted-foreground/40", connecting: "bg-warning", connected: "bg-success", error: "bg-danger" }[state.status];
+  const waking = state.status === "connecting";
+  const rate = connected && state.width > 0 ? (streamState.readout ? rateText(streamState.readout) : `${state.width}×${state.height}`) : "";
+  const tool = fullscreen ? "text-white/85 hover:bg-white/10 hover:text-white" : "text-white/90 hover:bg-white/15 hover:text-white";
 
-  return (
-    <aside
-      className="flex h-full w-[360px] shrink-0 flex-col border-l bg-panel"
-      aria-label="Office desktop"
-    >
-      {/* Expanded, the live view fills the app window like a remote desktop app: its toolbar takes the title
-          bar row (room for the window buttons, drags the window), the picture everything below. */}
-      <div className={cn("flex flex-col", fullscreen ? "fixed inset-0 z-40 bg-black" : "px-3 pt-3")}>
-        {fullscreen && (
-          <div data-tauri-drag-region
-            className={cn("flex h-11 shrink-0 select-none items-center gap-2 border-b border-white/10 bg-[#1b1c21] pr-2 text-white/85", isTauri ? "pl-[78px]" : "pl-3")}>
-            <span className={cn("size-2 shrink-0 rounded-full", dot)} />
-            <span data-tauri-drag-region className="text-[13px] font-semibold">{machine.name}</span>
-            <ModeSwitch control={control} canControl={canControl} onChange={(on) => live.setControl(on)} />
-            {connected && state.width > 0 && (
-              <Tooltip content={readoutText(state.width, state.height, streamState.readout)}>
-                <span className="flex items-center gap-1.5 text-[11px] tabular-nums text-white/60">
-                  <SignalBars bars={bars} />
-                  {streamState.readout ? rateText(streamState.readout) : `${state.width}×${state.height}`}
-                </span>
-              </Tooltip>
-            )}
-            <div data-tauri-drag-region className="h-full flex-1" />
-            <span data-tauri-drag-region className="mr-1 flex items-center gap-1 text-[11px] text-white/45">
-              {control ? <>Keys go to the office computer · switch to View, then <Kbd>Esc</Kbd></> : <><Kbd>Esc</Kbd> to collapse</>}
-            </span>
-            <SoundButton dark />
-            <QualityMenu machine={machine} dark />
-            <Tooltip content={connected ? "Disconnect live view" : "Connect live view"}>
-              <Button variant="ghost" size="icon-sm" aria-label={connected ? "Disconnect" : "Connect"}
-                className={cn("hover:bg-white/10", connected ? "text-success" : "text-white/80")}
-                disabled={state.status === "connecting"} onClick={() => (connected ? live.disconnect() : connect())}>
-                {state.status === "connecting" ? <Spinner /> : <Power />}
-              </Button>
-            </Tooltip>
-            <Tooltip content="Collapse to the panel">
-              <Button variant="ghost" size="icon-sm" aria-label="Collapse live view"
-                className="text-white/80 hover:bg-white/10 hover:text-white" onClick={() => set({ fullscreen: false })}>
-                <Shrink />
-              </Button>
-            </Tooltip>
-          </div>
-        )}
-        {!fullscreen && (
-        <div className="mb-2 flex h-8 items-center gap-2">
-          <span className={cn("size-2 rounded-full", dot)} />
-          <span className="text-[13px] font-medium">Live</span>
-          <span className="rounded bg-muted px-1.5 py-px text-[10.5px] font-medium text-muted-foreground">View only</span>
-          {connected && state.width > 0 && (
-            <Tooltip content={readoutText(state.width, state.height, streamState.readout)}>
-              <span className="text-[11px] tabular-nums text-muted-foreground">
-                {streamState.readout ? rateText(streamState.readout) : `${state.width}×${state.height}`}
-              </span>
-            </Tooltip>
-          )}
-          <div className="flex-1" />
-          <SoundButton dark={false} />
-          <QualityMenu machine={machine} dark={false} />
-          {/* Ends like the expanded toolbar: quality, power, then expand/collapse in the corner. */}
-          <Tooltip content={connected ? "Disconnect live view" : "Connect live view"}>
-            <Button variant="ghost" size="icon-sm" aria-label={connected ? "Disconnect" : "Connect"}
-              className={cn(connected && "text-success")}
-              disabled={state.status === "connecting"} onClick={() => (connected ? live.disconnect() : connect())}>
-              {state.status === "connecting" ? <Spinner /> : <Power />}
-            </Button>
-          </Tooltip>
-          <Tooltip content={`Expand in the window (double-click) · ${shortcut("C", true)} to take control`}>
-            <Button variant="ghost" size="icon-sm" aria-label="Expand live view" disabled={!connected && !canSnapshot}
-              onClick={() => set({ fullscreen: true })}>
-              <Expand />
-            </Button>
-          </Tooltip>
-        </div>
-        )}
-        <div
-          ref={stage}
-          onDoubleClick={(e) => {
-            // While controlling, double-clicks belong to the office computer.
-            if (control || (e.target as HTMLElement).closest("button")) return;
-            if (connected || canSnapshot) set({ fullscreen: !fullscreen });
-          }}
-          className={cn(
-            "relative overflow-hidden bg-[#0d0e12]",
-            fullscreen ? "min-h-0 flex-1" : "aspect-[16/10] rounded-[10px] border",
-            control && "ring-2 ring-inset ring-warning",
-          )}
-        >
-          <video ref={video} muted playsInline autoPlay tabIndex={-1} aria-label="Office desktop, live"
-            className={cn("absolute inset-0 size-full object-contain outline-none", (!connected || streamState.element !== "video") && "invisible", control && "touch-none")} />
-          {/* The WebSocket fallback draws decoded frames here instead of the video. */}
-          <canvas ref={canvas} tabIndex={-1} aria-label="Office desktop, live"
-            className={cn("absolute inset-0 size-full object-contain outline-none", (!connected || streamState.element !== "canvas") && "invisible", control && "touch-none")} />
-          {!connected && canSnapshot && <Snapshot base={chatState.baseUrl} sessionId={sessionId} width={stage.current?.clientWidth ?? 0} onRatio={setRatio} />}
-          {!connected && !canSnapshot && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 p-4 text-center">
-              <p className="text-xs text-white/60">
-                {state.status === "error" ? (state.detail === NO_DESKTOP ? NO_DESKTOP : state.detail) : hasDesktop ? "Office desktop is not connected" : NO_DESKTOP}
-              </p>
-              {hasDesktop && (
-                <Button size="sm" variant="secondary" className="border-white/15 bg-white/10 text-white hover:bg-white/15" onClick={() => connect()}>
-                  <Power className="size-3.5" /> Connect
-                </Button>
-              )}
-            </div>
-          )}
-          <ClickMarker stage={stage.current} ratio={ratio} />
-          {control && running && (
-            <div className="pointer-events-none absolute left-1/2 top-3 -translate-x-1/2 rounded-md bg-warning px-2.5 py-1 text-[11.5px] font-medium text-black shadow-panel">
-              The agent is working on this desktop too — your input can interfere
-            </div>
-          )}
-          {latest && (
-            <div className="pointer-events-none absolute bottom-2 left-2 flex max-w-[85%] items-center gap-1.5 rounded-md bg-black/65 px-2 py-1 text-[11px] text-white backdrop-blur">
-              <Spinner className="size-3 border-white border-t-transparent" />
-              <span className="truncate">{latest.title}</span>
-            </div>
-          )}
-        </div>
-        {!fullscreen && state.status === "error" && canSnapshot && (
-          <p className="mt-1.5 truncate text-[11px] text-danger" title={state.detail}>Live view: {state.detail}</p>
-        )}
-      </div>
-      <div className="mt-3 grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)] content-start gap-4 overflow-y-auto px-2 pb-3">
-        <QueueList queue={queue} perSession={perSession} />
-        <Steps />
-      </div>
-    </aside>
+  const tools = (
+    <>
+      {!control && (
+        <Button size="sm" variant="ghost" onClick={takeControl} className={cn("h-7 gap-1.5 px-2 text-xs", tool)}>
+          <Hand className="size-3.5" /> Take control
+        </Button>
+      )}
+      <span className="flex-1" />
+      <SoundButton dark />
+      {fullscreen && <QualityMenu machine={machine} dark />}
+      <IconButton label={fullscreen ? "Back to the panel" : "Open in the window"} className={tool} onClick={() => set({ fullscreen: !fullscreen })}>
+        {fullscreen ? <Shrink /> : <Expand />}
+      </IconButton>
+      <IconButton label="Put the screen to sleep" className={tool} onClick={() => live.disconnect()}><Moon /></IconButton>
+    </>
   );
-}
 
-/**
- * This computer's panel: the queue and the agent's steps, without the live view (the user is
- * sitting at it; mobd docs/mob-desktop-local-mobd.md).
- */
-export function ActivityPanel({ health, queue }: { health?: Health; queue?: Queue }) {
-  return (
-    <aside className="flex h-full w-[360px] shrink-0 flex-col border-l bg-panel" aria-label="Activity">
-      <div className="mt-3 grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)] content-start gap-4 overflow-y-auto px-2 pb-3">
-        <QueueList queue={queue} perSession={sessionDesktops(health)} />
-        <Steps />
+  const screen = (
+    <div
+      ref={stage}
+      onPointerMove={() => connected && setTouched(Date.now())}
+      onDoubleClick={(e) => {
+        // While controlling, double-clicks belong to the other computer.
+        if (control || (e.target as HTMLElement).closest("button")) return;
+        if (connected) set({ fullscreen: !fullscreen });
+      }}
+      className={cn(
+        "group/screen relative overflow-hidden bg-[#0d0e12]",
+        fullscreen ? "min-h-0 flex-1" : "aspect-[16/10] rounded-[10px] border",
+        control && "ring-2 ring-inset ring-accent",
+      )}
+    >
+      <video ref={video} muted playsInline autoPlay tabIndex={-1} aria-label={`${machine.name} screen, live`}
+        className={cn("absolute inset-0 size-full object-contain outline-none", (!connected || streamState.element !== "video") && "invisible", control && "touch-none")} />
+      {/* The WebSocket fallback draws decoded frames here instead of the video. */}
+      <canvas ref={canvas} tabIndex={-1} aria-label={`${machine.name} screen, live`}
+        className={cn("absolute inset-0 size-full object-contain outline-none", (!connected || streamState.element !== "canvas") && "invisible", control && "touch-none")} />
+      {!connected && canSnapshot && (
+        <div className="absolute inset-0 opacity-45">
+          <Snapshot base={chatState.baseUrl} sessionId={sessionId} width={stage.current?.clientWidth ?? 0} onRatio={setRatio} onError={setSnapError} />
+        </div>
+      )}
+      {!connected && (
+        // Asleep: the last picture, dimmed; a click wakes it.
+        <button type="button" disabled={waking || !hasDesktop} onClick={() => connect()}
+          className="absolute inset-0 flex flex-col items-center justify-center gap-1 p-4 text-center text-white disabled:cursor-default">
+          {waking ? <Spinner className="border-white border-t-transparent" /> : <Moon className="size-4 text-white/80" />}
+          <span className="text-[13px] font-semibold">{waking ? "Waking…" : hasDesktop ? "Asleep" : "No screen yet"}</span>
+          <span className="max-w-[90%] text-[11px] text-white/65">
+            {!hasDesktop ? NO_DESKTOP : state.status === "error" ? (state.detail === NO_DESKTOP ? NO_DESKTOP : state.detail) : waking ? "" : snapError ? `Click to wake · ${snapError}` : "Click to wake"}
+          </span>
+        </button>
+      )}
+      <ClickMarker stage={stage.current} ratio={ratio} />
+      {connected && !control && !fullscreen && (
+        <span className="pointer-events-none absolute left-2 top-2 flex items-center gap-1.5 rounded-md bg-black/60 px-1.5 py-0.5 text-[10.5px] font-medium text-white backdrop-blur">
+          <span className="size-1.5 rounded-full bg-success" /> Live{rate && ` · ${rate}`}
+        </span>
+      )}
+      {control && (
+        <div className="absolute inset-x-0 top-0 flex items-center gap-1.5 bg-accent py-1 pl-2.5 pr-1.5 text-[11.5px] font-medium text-white">
+          <Hand className="size-3.5" /> You're in control
+          <button type="button" onClick={() => live.setControl(false)}
+            className="ml-auto flex items-center gap-1.5 rounded-md bg-white/20 px-2 py-0.5 text-[11px] hover:bg-white/30">
+            Release <span className="text-[10px] text-white/75">Esc</span>
+          </button>
+        </div>
+      )}
+      {connected && !fullscreen && (
+        <div className="absolute inset-x-0 bottom-0 flex items-center gap-0.5 bg-gradient-to-t from-black/70 to-transparent px-1.5 pb-1 pt-4 opacity-0 transition-opacity focus-within:opacity-100 group-hover/screen:opacity-100">
+          {tools}
+        </div>
+      )}
+    </div>
+  );
+
+  // Expanded, the screen fills the app window like a remote desktop app: its toolbar takes the title
+  // bar row (room for the window buttons, drags the window), the picture everything below.
+  if (fullscreen) {
+    return (
+      <div className="fixed inset-0 z-40 flex flex-col bg-black">
+        <div data-tauri-drag-region
+          className={cn("flex h-11 shrink-0 select-none items-center gap-2 border-b border-white/10 bg-[#1b1c21] pr-2 text-white/85", isTauri && isMac ? "pl-[78px]" : "pl-3")}>
+          <span className={cn("size-2 shrink-0 rounded-full", connected ? "bg-success" : "bg-white/30")} />
+          <span data-tauri-drag-region className="text-[13px] font-semibold">{machine.name}</span>
+          {rate && (
+            <Tooltip content={readoutText(state.width, state.height, streamState.readout)}>
+              <span className="flex items-center gap-1.5 text-[11px] tabular-nums text-white/60"><SignalBars bars={bars} />{rate}</span>
+            </Tooltip>
+          )}
+          <div data-tauri-drag-region className="flex h-full flex-1 items-center gap-0.5 pl-2">{connected && tools}</div>
+          {!connected && (
+            <IconButton label="Back to the panel" className={tool} onClick={() => set({ fullscreen: false })}><Shrink /></IconButton>
+          )}
+        </div>
+        {screen}
       </div>
-    </aside>
+    );
+  }
+
+  return (
+    <section className="px-3 pt-3" aria-label={`${machine.name} screen`}>
+      <h3 className="mb-1.5 flex items-center gap-1.5 px-0.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+        Screen <span className="font-normal normal-case tracking-normal">{machine.name}</span>
+      </h3>
+      {screen}
+    </section>
   );
 }
