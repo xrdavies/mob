@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none" role="img" aria-labelledby="title description">
+  <title id="title">mob Screen Buddy</title>
+  <desc id="description">A friendly cream computer with a smiling purple screen and a mint cursor, representing a remote desktop assistant.</desc>
+  <g stroke="#282347" stroke-width="11" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M252 126V92"/>
+    <circle cx="252" cy="78" r="19" fill="#B8ECCC"/>
+    <path d="M100 277C62 278 56 315 76 330" stroke-width="28"/>
+    <path d="M100 277C62 278 56 315 76 330" stroke="#8B85FF" stroke-width="14"/>
+    <path d="M360 270C388 277 406 296 399 323" stroke-width="28"/>
+    <path d="M360 270C388 277 406 296 399 323" stroke="#8B85FF" stroke-width="14"/>
+    <path d="M199 347L184 385M290 347L306 385" stroke-width="25"/>
+    <path d="M166 381H199C215 381 223 393 223 408H147C147 393 152 381 166 381Z" fill="#8B85FF"/>
+    <path d="M288 381H321C336 381 343 393 343 408H270C270 393 276 381 288 381Z" fill="#8B85FF"/>
+    <rect x="94" y="127" width="299" height="226" rx="58" fill="#F9F4E9"/>
+    <rect x="117" y="150" width="253" height="159" rx="38" fill="#6559E8"/>
+    <path d="M142 200V190C142 181 149 175 158 175H184" stroke="#9189FF" stroke-width="10"/>
+    <path d="M181 209V232M300 209V232" stroke="#F9F4E9" stroke-width="19"/>
+    <path d="M222 251Q243 276 265 251" stroke="#F9F4E9" stroke-width="10"/>
+    <path d="M218 330H251" stroke="#B9AFE5" stroke-width="8"/>
+    <circle cx="278" cy="330" r="5" fill="#B8ECCC" stroke="none"/>
+    <path d="M72 309C55 309 51 323 56 335C60 347 76 353 86 343L95 333C105 321 94 307 83 312" fill="#F9F4E9"/>
+    <path d="M338 292L422 336L388 345L374 382Z" fill="#B8ECCC"/>
+  </g>
+</svg>

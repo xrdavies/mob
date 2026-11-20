@@ -10,7 +10,7 @@ iOS, Android and the product website live in separate repositories.
 
 Desktop **mob** client: dispatch tasks to the office agent, follow what it does step by step, and watch the office desktop — task API from office **`mobd`** (v3) + its live desktop stream.
 
-Design: [docs/ui.md](docs/ui.md) · Live view: [docs/desktop-streaming.md](docs/desktop-streaming.md) · Stack decision: [ADR 0009](docs/adr/0009-app-frontend-react.md) · API: [docs/mobd-v3.md](https://github.com/xrdavies/mobd/blob/main/docs/mobd-v3.md)
+Design: [docs/ui.md](docs/ui.md) · Redesign (planned): [docs/desktop-redesign](docs/desktop-redesign/README.md) · Live view: [docs/desktop-streaming.md](docs/desktop-streaming.md) · Stack decision: [ADR 0009](docs/adr/0009-app-frontend-react.md) · API: [docs/mobd-v3.md](https://github.com/xrdavies/mobd/blob/main/docs/mobd-v3.md)
 
 Planned, not implemented: [USB redirection](docs/usb-redirection.md), sharing selected local hardware with mobd through open-source USB/IP backends. The draft includes platform limits and links to mobd's Apple entitlement application.
 

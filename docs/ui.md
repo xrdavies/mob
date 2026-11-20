@@ -1,5 +1,7 @@
 # mob — UI design
 
+> A redesign of this UI is settled but not built yet: [desktop-redesign](desktop-redesign/README.md), with a clickable [mockup](desktop-redesign/mockup.html). This page describes the current app.
+
 **Product:** the home Mac **mob** App: dispatch tasks to the office agent, watch what it does, and monitor the office desktop.
 **Stack:** Tauri 2 + React 19 + Tailwind v4 + shadcn/ui ([ADR 0009](adr/0009-app-frontend-react.md)); the live desktop is mobd's stream (WebRTC, WebSocket + WebCodecs fallback).
 **Backend:** [mobd v3](https://github.com/xrdavies/mobd/blob/main/docs/mobd-v3.md). Features below name the API they depend on.

@@ -1,0 +1,810 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Mob Desktop redesign · mockup</title>
+<style>
+/* Mob design language: shared tokens (index.html) + A's native-Mac surfaces. v2: computers in the sidebar,
+   one ⌘K for search + ask + commands, a task-oriented context panel, full computer settings. */
+:root{
+  --brand:#6559E8;--brand-2:#8B85FF;--ink:#282347;--cream:#F9F4E9;--mint:#B8ECCC;
+  --bg:#ffffff;--side:#f4f4f6;--panel:#fafafb;--muted:#f0f0f3;--line:#e5e5ea;--fg:#16161c;--dim:#6e6e7a;
+  --accent:var(--brand);--accent-soft:rgba(101,89,232,.10);--on-accent:#fff;
+  --working:var(--brand);--needs:#d97706;--done:#16a34a;--failed:#dc2626;
+  --shadow:0 1px 2px rgba(20,20,30,.05),0 6px 20px rgba(20,20,30,.07);
+  --sans:-apple-system,BlinkMacSystemFont,"SF Pro Text",Inter,system-ui,sans-serif;--mono:"SF Mono",ui-monospace,Menlo,monospace;
+}
+.dark{--bg:#17171c;--side:#1e1e24;--panel:#1b1b21;--muted:#26262e;--line:#2e2e37;--fg:#ececf1;--dim:#9696a3;
+  --accent:#8B85FF;--accent-soft:rgba(139,133,255,.15);--on-accent:#111;--working:#8B85FF;--needs:#f59e0b;--done:#22c55e;--failed:#f87171;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 30px rgba(0,0,0,.4)}
+*{box-sizing:border-box}html,body{margin:0}
+body{font:13px/1.45 var(--sans);color:var(--fg);background:#d7d7de;-webkit-font-smoothing:antialiased}
+body.dark{background:#050507}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;padding:0}
+code,.mono{font-family:var(--mono);font-size:12px}
+.hidden{display:none!important}
+.grow{flex:1}
+/* mockup chrome */
+.bar{max-width:1280px;margin:18px auto 12px;display:flex;gap:6px;align-items:center;flex-wrap:wrap;font-size:12px;color:#333}
+.dark .bar{color:#aaa}.bar b{margin-right:6px}.bar a{color:inherit}
+.bar button{border:1px solid #bbb;background:#fff;color:#222;border-radius:6px;padding:4px 10px}
+.bar button.on{background:#222;color:#fff;border-color:#222}
+/* window */
+.win{max-width:1280px;height:820px;margin:0 auto 40px;border-radius:12px;overflow:hidden;display:flex;background:var(--bg);
+  border:1px solid var(--line);box-shadow:0 30px 80px rgba(0,0,0,.28);position:relative}
+/* sidebar */
+.side{width:272px;flex:none;background:var(--side);border-right:1px solid var(--line);display:flex;flex-direction:column}
+.side-top{height:52px;display:flex;align-items:center;padding:0 12px 0 14px;gap:6px;flex:none}
+.lights{display:flex;gap:8px;margin-right:12px}
+.brand{display:flex;align-items:center;gap:6px;font-weight:700;font-size:13.5px;letter-spacing:-.01em;margin-right:auto}.brand img{width:24px}.lights i{width:12px;height:12px;border-radius:50%}
+.lights i:nth-child(1){background:#ff5f57}.lights i:nth-child(2){background:#febc2e}.lights i:nth-child(3){background:#28c840}
+.tb{width:28px;height:28px;border-radius:7px;display:grid;place-items:center;color:var(--dim);font-size:15px}
+.tb:hover{background:var(--muted);color:var(--fg)}
+.ask{margin:0 10px 6px;height:32px;border-radius:9px;background:var(--bg);border:1px solid var(--line);display:flex;align-items:center;gap:8px;padding:0 10px;color:var(--dim);width:calc(100% - 20px);text-align:left;box-shadow:0 1px 1px rgba(0,0,0,.03)}
+.ask:hover{border-color:color-mix(in srgb,var(--fg) 25%,transparent)}
+kbd{font:11px var(--sans);color:var(--dim);margin-left:auto}
+.row{display:flex;align-items:center;gap:9px;margin:0 6px;padding:6px 8px;border-radius:8px;font-size:13px}
+.row:hover{background:var(--muted)}.row.on{background:var(--accent-soft)}
+.needs-badge{margin-left:auto;background:var(--needs);color:#fff;font-size:10.5px;font-weight:600;border-radius:999px;padding:1px 7px}
+.nav{flex:1;overflow:auto;padding-bottom:8px}
+.sect{display:flex;align-items:center;font-size:11px;font-weight:600;color:var(--dim);margin:14px 16px 4px}
+.sect .tb{width:22px;height:22px;font-size:13px;margin-left:auto}
+.cg{margin-bottom:4px}
+.ch{display:flex;align-items:center;gap:8px;margin:0 6px;padding:5px 8px;border-radius:8px;font-weight:600;font-size:12.5px}
+.ch:hover{background:var(--muted)}
+.ch .caret{width:10px;color:var(--dim);font-size:11px;transition:transform .15s}
+.cg.closed .caret{transform:rotate(-90deg)}
+.cg.closed .cl{display:none}
+.ch .ic{font-size:14px}
+.ch .meta{font-weight:400;color:var(--dim);font-size:11px}
+.ch .plus{opacity:0;margin-left:auto;width:20px;height:20px;border-radius:5px;display:grid;place-items:center;color:var(--dim)}
+.ch:hover .plus{opacity:1}.ch .plus:hover{background:var(--line)}
+.ch .cnt{margin-left:auto;font-weight:500}
+.ch:hover .cnt{display:none}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--done);flex:none;display:inline-block}
+.dot.off{background:var(--dim);opacity:.45}
+.chat{display:flex;gap:9px;margin:0 6px;padding:6px 8px 6px 26px;border-radius:9px;align-items:flex-start}
+.chat:hover{background:var(--muted)}.chat.on{background:var(--accent-soft)}
+.chat .t{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chat .m{font-size:11.5px;color:var(--dim);display:flex;gap:6px;align-items:center;white-space:nowrap;overflow:hidden}
+.more{margin:0 6px;padding:3px 8px 3px 26px;font-size:11.5px;color:var(--dim);border-radius:7px;display:block}
+.more:hover{background:var(--muted)}
+.av{width:20px;height:20px;border-radius:6px;display:grid;place-items:center;color:#fff;font-weight:700;font-size:10.5px;flex:none}
+.av.claude{background:#d97757}.av.codex{background:#202024}.av.pi{background:#7c3aed}
+.av.lg{width:30px;height:30px;border-radius:8px;font-size:13px}
+.st{display:inline-flex;align-items:center;gap:5px;font-size:11.5px}
+.st.working{color:var(--working)}.st.needs{color:var(--needs);font-weight:500}.st.done{color:var(--dim)}.st.failed{color:var(--failed)}.st.ok{color:var(--done)}
+.spin{width:9px;height:9px;border-radius:50%;border:1.6px solid currentColor;border-top-color:transparent;animation:spin .9s linear infinite;flex:none;display:inline-block}
+@keyframes spin{to{transform:rotate(360deg)}}
+.side-foot{padding:8px 10px;border-top:1px solid var(--line);display:flex;align-items:center;gap:4px;flex:none}
+.side-foot .row{margin:0;flex:1}
+/* main */
+.main{flex:1;display:flex;flex-direction:column;min-width:0}
+.toolbar{height:52px;flex:none;display:flex;align-items:center;gap:6px;padding:0 12px 0 18px;border-bottom:1px solid var(--line)}
+.toolbar .title{font-weight:600;font-size:13.5px}.toolbar .sub{font-size:11.5px;color:var(--dim);display:flex;gap:6px;align-items:center}
+.useind{display:flex;align-items:center;gap:7px;height:26px;padding:0 10px;border-radius:999px;font-size:11.5px;font-weight:500;
+  background:color-mix(in srgb,var(--needs) 13%,transparent);color:var(--needs)}
+.pulse{width:7px;height:7px;border-radius:50%;background:currentColor;animation:pulse 1.3s infinite}@keyframes pulse{50%{opacity:.25}}
+.content{flex:1;display:flex;min-height:0}
+.thread{flex:1;display:flex;flex-direction:column;min-width:0}
+.scroll{flex:1;overflow:auto;padding:28px 0 12px}
+.col{max-width:680px;margin:0 auto;padding:0 28px;display:grid;gap:20px}
+.you{justify-self:end;max-width:78%;background:var(--muted);padding:10px 14px;border-radius:16px 16px 5px 16px}
+.agent-head{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--dim);margin-bottom:6px}
+.agent-head b{color:var(--fg);font-weight:600}
+.reply p{margin:0 0 8px;line-height:1.6}
+.fold{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--dim);padding:6px 10px;border-radius:8px;width:max-content;margin-bottom:8px}
+.fold:hover{background:var(--muted)}
+.askcard{border:1px solid color-mix(in srgb,var(--needs) 45%,var(--line));border-radius:12px;padding:14px 16px;background:color-mix(in srgb,var(--needs) 5%,var(--bg))}
+.askcard .q{font-weight:600;margin:4px 0 4px}.askcard .d{font-size:12px;color:var(--dim)}
+.acts{display:flex;gap:8px;margin-top:12px;align-items:center}
+.btn{height:30px;padding:0 14px;border-radius:8px;background:var(--accent);color:var(--on-accent);font-weight:500;font-size:12.5px;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.btn.sec{background:var(--muted);color:var(--fg)}.btn.ghost{background:none;color:var(--dim)}.btn.ghost:hover{background:var(--muted)}
+.btn.sm{height:26px;padding:0 10px;font-size:12px}
+.btn.danger{background:none;color:var(--failed);border:1px solid color-mix(in srgb,var(--failed) 35%,transparent)}
+.btn[disabled]{opacity:.45;cursor:default}
+.meta{font-size:11.5px;color:var(--dim)}
+.composer{padding:0 28px 20px}
+.cbox{max-width:680px;margin:0 auto;border:1px solid var(--line);border-radius:16px;background:var(--bg);box-shadow:var(--shadow);padding:12px 14px}
+.cbox .ph{color:var(--dim);min-height:40px}
+.crow{display:flex;align-items:center;gap:6px}
+.pill{height:26px;border-radius:999px;border:1px solid var(--line);padding:0 10px;display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--dim)}
+.send{margin-left:auto;width:30px;height:30px;border-radius:50%;background:var(--accent);color:var(--on-accent);display:grid;place-items:center}
+/* needs-you view */
+.needsview{flex:1;overflow:auto;padding:28px}
+.needsview .inner{max-width:720px;margin:0 auto;display:grid;gap:12px}
+.needsview h1{font-size:18px;margin:0}
+.ncard{border:1px solid var(--line);border-radius:12px;padding:14px 16px;display:grid;gap:4px;background:var(--bg)}
+.ncard.sel{border-color:color-mix(in srgb,var(--needs) 55%,var(--line));box-shadow:0 0 0 3px color-mix(in srgb,var(--needs) 12%,transparent)}
+.ncard .top{display:flex;gap:8px;align-items:center;font-size:12px;color:var(--dim)}
+.ncard .q{font-size:14px;font-weight:600}
+/* context panel */
+.insp{width:328px;flex:none;border-left:1px solid var(--line);background:var(--panel);display:flex;flex-direction:column}
+.seg{display:flex;margin:12px;background:var(--muted);border-radius:8px;padding:2px;flex:none}
+.seg button{flex:1;height:26px;border-radius:6px;font-size:12px;color:var(--dim)}
+.seg button.on{background:var(--bg);color:var(--fg);box-shadow:0 1px 2px rgba(0,0,0,.08);font-weight:500}
+.ibody{flex:1;overflow:auto;padding:2px 16px 16px;display:grid;gap:18px;align-content:start}
+.ih{font-size:11px;font-weight:600;color:var(--dim);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;display:flex;align-items:center}
+.ih span{margin-left:auto;text-transform:none;letter-spacing:0;font-weight:400}
+.status{border-radius:10px;padding:10px 12px;display:flex;gap:10px;align-items:center;background:color-mix(in srgb,var(--needs) 9%,var(--bg));border:1px solid color-mix(in srgb,var(--needs) 30%,var(--line))}
+.status.w{background:var(--accent-soft);border-color:color-mix(in srgb,var(--accent) 25%,var(--line))}
+.status b{display:block;font-size:12.5px}.status .meta{font-size:11px}
+.plan{display:grid;gap:7px;font-size:12.5px}
+.plan div{display:flex;gap:8px;align-items:flex-start}
+.plan .k{width:14px;flex:none;text-align:center;font-size:11px;margin-top:1px}
+.plan .d{color:var(--dim);text-decoration:line-through;text-decoration-color:color-mix(in srgb,var(--dim) 50%,transparent)}
+.out{display:flex;gap:10px;align-items:center;padding:8px 10px;border:1px solid var(--line);border-radius:10px;background:var(--bg);font-size:12.5px}
+.out+.out{margin-top:6px}
+.out .oi{width:30px;height:30px;border-radius:7px;background:var(--muted);display:grid;place-items:center;flex:none}
+.out .oa{margin-left:auto;color:var(--dim);font-size:11.5px}
+.out:hover .oa{color:var(--accent)}
+.thumb{height:30px;width:42px;border-radius:5px;background:linear-gradient(140deg,#e8e6ff,#c9c3ff);flex:none}
+.who{display:grid;gap:8px;font-size:12.5px}
+.who div{display:flex;gap:8px;align-items:center}
+.kv{display:grid;grid-template-columns:86px 1fr;gap:5px 10px;font-size:12px}.kv span:nth-child(odd){color:var(--dim)}
+.tl{position:relative;padding-left:18px;display:grid;gap:14px}
+.tl::before{content:"";position:absolute;left:4px;top:6px;bottom:6px;width:1px;background:var(--line)}
+.tl .e{position:relative;font-size:12.5px}
+.tl .e::before{content:"";position:absolute;left:-18px;top:5px;width:9px;height:9px;border-radius:50%;background:var(--bg);border:1.5px solid var(--dim)}
+.tl .e.ok::before{border-color:var(--done);background:var(--done)}
+.tl .e.now::before{border-color:var(--needs);background:var(--needs)}
+.tl .e .s{font-size:11.5px;color:var(--dim)}
+.filt{display:flex;gap:4px;flex-wrap:wrap}.filt span{font-size:11px;border:1px solid var(--line);border-radius:999px;padding:1px 8px;color:var(--dim)}
+.filt span.on{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+.screen{aspect-ratio:16/10;border-radius:10px;background:linear-gradient(140deg,#2c2f48,#5a4b86);position:relative;overflow:hidden}
+.screen i{position:absolute;background:rgba(255,255,255,.88);border-radius:5px}
+.screen .tag{position:absolute;left:8px;bottom:8px;font-size:11px;color:#fff;background:rgba(0,0,0,.55);padding:2px 7px;border-radius:6px}
+.screen .cur{position:absolute;left:56%;top:48%;color:#fff;font-size:15px}
+.screen .cur span{position:absolute;left:12px;top:12px;white-space:nowrap;background:var(--mint);color:#1d4a32;font-size:10px;font-weight:600;border-radius:999px;padding:1px 6px}
+.vc{display:flex;gap:6px}
+/* context panel v3: who, what happened, details on demand */
+.party{flex:none;padding:12px 16px 10px;border-bottom:1px solid var(--line)}
+.party .p{display:flex;align-items:center;gap:8px;font-size:12.5px;padding:4px 0}
+.party .p .r{margin-left:auto;white-space:nowrap}
+.party .p .meta{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.tl .when{float:right;font-size:11px;color:var(--dim);font-variant-numeric:tabular-nums}
+.tl .by{display:inline-grid!important;width:15px;height:15px;font-size:8px;border-radius:4px;margin-right:6px;vertical-align:-3px}
+.adv{flex:none;border-top:1px solid var(--line)}
+.adv summary{list-style:none;cursor:pointer;padding:10px 16px;font-size:12px;color:var(--dim);display:flex;align-items:center;gap:6px}
+.adv summary::-webkit-details-marker{display:none}
+.adv summary::before{content:"\25B8";font-size:10px;transition:transform .15s}
+.adv[open] summary::before{transform:rotate(90deg)}
+.adv .kv{padding:0 16px 14px}
+.caught{display:flex;gap:12px;align-items:center;color:var(--dim);font-size:12.5px;padding:14px 4px}.caught img{width:40px}
+/* app settings */
+.ptitle{margin:0 0 16px;font-size:17px}
+.about{display:flex;gap:16px;align-items:center;border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:20px;background:linear-gradient(135deg,var(--accent-soft),transparent 70%)}
+.about img{width:64px}.about .aname{font-size:16px;font-weight:700}
+.key{font:12px var(--sans);border:1px solid var(--line);border-radius:5px;padding:1px 7px;background:var(--bg);color:var(--dim)}
+.themes{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:18px}
+.th{border:2px solid var(--line);border-radius:12px;padding:8px 8px 6px;text-align:center;font-size:12px;background:var(--panel)}
+.th.on{border-color:var(--accent)}
+.pv{height:70px;border-radius:8px;display:flex;overflow:hidden;border:1px solid var(--line);margin-bottom:6px}
+.pv i{display:block}.pv .s{width:30%}.pv .m{flex:1}
+.segc{display:inline-flex;background:var(--muted);border-radius:8px;padding:2px}
+.segc span{padding:3px 12px;border-radius:6px;font-size:12px;color:var(--dim)}
+.segc span.on{background:var(--bg);color:var(--fg);box-shadow:0 1px 2px rgba(0,0,0,.08)}
+.slider{width:140px;height:4px;border-radius:2px;background:var(--line);position:relative;display:inline-block}
+.slider i{display:block;height:100%;width:45%;background:var(--accent);border-radius:2px;position:relative}
+.slider i::after{content:"";position:absolute;right:-7px;top:-5px;width:14px;height:14px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.3)}
+.appicons{display:flex;gap:8px}
+.appicons span{width:42px;height:42px;border-radius:11px;display:grid;place-items:center;border:2px solid transparent}
+.appicons span.on{border-color:var(--accent)}.appicons img{width:30px}
+/* line icons (Lucide style): no emoji in the product */
+.i{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round;flex:none;vertical-align:-3px}
+.tb .i{width:16px;height:16px}
+.cic .i,.choice .ic .i,.target .ic .i{width:20px;height:20px;stroke-width:1.6}
+.ch .ic{display:inline-flex;color:var(--dim)}
+.cb{width:28px;height:28px;border-radius:7px;display:grid;place-items:center;color:var(--dim)}
+.cb:hover{background:var(--muted);color:var(--fg)}
+/* screen: asleep until touched */
+.scrw{flex:none;padding:12px 16px;border-bottom:1px solid var(--line)}
+.scr2{position:relative;aspect-ratio:16/10;border-radius:10px;overflow:hidden;background:#1d1e2b;cursor:pointer;outline:2px solid transparent;outline-offset:-2px;transition:outline-color .15s}
+.snap{position:absolute;inset:0;background:linear-gradient(140deg,#2c2f48,#5a4b86);transition:filter .3s}
+.snap i{position:absolute;background:rgba(255,255,255,.88);border-radius:5px}
+.cur2{position:absolute;left:56%;top:46%;color:#fff}
+.cur2 .i{width:14px;height:14px;fill:#fff;stroke:#1d1e2b;stroke-width:1.5}
+.cur2 span{position:absolute;left:14px;top:12px;white-space:nowrap;background:var(--mint);color:#1d4a32;font-size:10px;font-weight:600;border-radius:999px;padding:1px 6px}
+.sleepov{position:absolute;inset:0;display:grid;place-content:center;justify-items:center;gap:3px;color:#ececf3;background:rgba(10,10,18,.5);font-size:12.5px}
+.sleepov .i{width:20px;height:20px;margin-bottom:3px;opacity:.85}
+.sleepov span{font-size:11px;opacity:.7}
+.livechip{position:absolute;left:8px;top:8px;display:flex;gap:6px;align-items:center;font-size:10.5px;color:#fff;background:rgba(0,0,0,.55);padding:2px 7px;border-radius:6px}
+.livechip i{width:6px;height:6px;border-radius:50%;background:#22c55e}
+.tools{position:absolute;left:0;right:0;bottom:0;display:flex;gap:4px;align-items:center;padding:6px;background:linear-gradient(transparent,rgba(0,0,0,.6));cursor:default}
+.tbx{height:26px;min-width:26px;padding:0 7px;border-radius:7px;display:inline-flex;align-items:center;justify-content:center;gap:5px;color:#fff;background:rgba(255,255,255,.14);font-size:11.5px;font-weight:500}
+.tbx:hover{background:rgba(255,255,255,.28)}.tbx .i{width:14px;height:14px}
+.ctlbar{position:absolute;left:0;right:0;top:0;display:flex;align-items:center;gap:6px;padding:5px 6px 5px 9px;background:var(--brand);color:#fff;font-size:11.5px;font-weight:500;cursor:default}
+.ctlbar .i{width:13px;height:13px}
+.ctlbar button{margin-left:auto;background:rgba(255,255,255,.2);border-radius:6px;padding:2px 8px;color:#fff;font-size:11px}
+.ctlbar kbd{color:rgba(255,255,255,.75);margin-left:5px;font-size:10px}
+.scrnote{margin-top:8px}
+[data-state=asleep] .snap{filter:blur(3px) grayscale(.6) brightness(.55)}
+[data-state=asleep] .livechip,[data-state=asleep] .tools,[data-state=asleep] .ctlbar,[data-state=asleep] .cur2{display:none}
+[data-state=live] .sleepov,[data-state=live] .ctlbar,[data-state=control] .sleepov,[data-state=control] .livechip{display:none}
+[data-state=live] .scr2,[data-state=control] .scr2{cursor:default}
+[data-state=control] .scr2{outline-color:var(--brand);cursor:crosshair}
+[data-state=control] .tools [data-scr=control]{display:none}
+/* conversation menu */
+.menu{position:absolute;top:48px;right:12px;width:230px;background:var(--bg);border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow);padding:5px;z-index:15}
+.menu button{display:flex;align-items:center;gap:9px;width:100%;padding:6px 9px;border-radius:7px;font-size:13px;text-align:left}
+.menu button:hover{background:var(--muted)}.menu kbd{margin-left:auto}
+.menu hr{border:0;border-top:1px solid var(--line);margin:4px 2px}
+.menu .danger{color:var(--failed)}
+/* agent steps inside a reply */
+.fold[data-fold]{cursor:pointer}
+.steps{border:1px solid var(--line);border-radius:12px;overflow:hidden;margin:0 0 12px}
+.step{display:flex;gap:10px;padding:9px 12px;font-size:12.5px;align-items:flex-start}
+.step+.step{border-top:1px solid var(--line)}
+.step .si{width:24px;height:24px;border-radius:6px;background:var(--muted);display:grid;place-items:center;color:var(--dim);flex:none}
+.step .si .i{width:13px;height:13px}
+.step .sb{flex:1;min-width:0}
+.step .sm{font-size:11.5px;color:var(--dim)}
+.step .sr{margin-left:auto;font-size:11px;color:var(--dim);white-space:nowrap;padding-left:8px}
+.out2{margin-top:6px;font:11px/1.55 var(--mono);background:var(--muted);border-radius:7px;padding:7px 9px;color:var(--dim);white-space:pre;overflow:hidden}
+.shots{display:flex;gap:6px;margin-top:6px}.shots i{width:64px;height:40px;border-radius:5px;background:linear-gradient(140deg,#e8e6ff,#c9c3ff)}
+.ok2{color:var(--done)}.bad2{color:var(--failed)}
+/* overlays */
+.overlay{position:absolute;inset:0;background:rgba(0,0,0,.28);display:grid;place-items:center;z-index:10}
+.overlay.top{place-items:start center;padding-top:90px}
+.pal{width:620px;background:var(--bg);border:1px solid var(--line);border-radius:14px;box-shadow:0 30px 70px rgba(0,0,0,.3);overflow:hidden}
+.pal .in{display:flex;align-items:center;gap:10px;padding:14px 16px;border-bottom:1px solid var(--line);font-size:15px}
+.pal .in .cur{width:1.5px;height:18px;background:var(--accent);animation:pulse 1s infinite}
+.pal .grp{padding:6px}
+.pal .gh{font-size:11px;font-weight:600;color:var(--dim);padding:6px 10px 4px}
+.pal .it{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px;font-size:13px}
+.pal .it.sel{background:var(--accent-soft)}
+.pal .it .k{margin-left:auto;font-size:11px;color:var(--dim)}
+.pal .ft{border-top:1px solid var(--line);padding:8px 14px;display:flex;gap:16px;font-size:11px;color:var(--dim)}
+/* settings */
+.sheet{width:940px;height:660px;background:var(--bg);border-radius:14px;box-shadow:0 30px 70px rgba(0,0,0,.35);display:flex;overflow:hidden;border:1px solid var(--line)}
+.snav{width:220px;background:var(--side);border-right:1px solid var(--line);padding:14px 8px;display:flex;flex-direction:column;gap:1px;flex:none}
+.snav .row{margin:0}.snav .sect{margin:16px 8px 4px}
+.spage{flex:1;overflow:auto;padding:22px 30px 30px}
+.phead{display:flex;align-items:center;gap:12px;margin-bottom:16px}
+.phead .cic{width:44px;height:44px;border-radius:12px;background:var(--muted);display:grid;place-items:center;font-size:22px}
+.phead h2{margin:0;font-size:17px}
+.tabs{display:flex;gap:4px;margin-bottom:18px;border-bottom:1px solid var(--line);padding-bottom:10px}
+.tabs button{height:28px;padding:0 12px;border-radius:7px;font-size:12.5px;color:var(--dim)}
+.tabs button.on{background:var(--muted);color:var(--fg);font-weight:500}
+.group{border:1px solid var(--line);border-radius:12px;overflow:hidden;margin-bottom:18px;background:var(--panel)}
+.gr{display:flex;align-items:center;gap:14px;padding:11px 14px;font-size:13px}
+.gr+.gr{border-top:1px solid var(--line)}
+.gr .l{flex:1;min-width:0}.gr .h{font-size:11.5px;color:var(--dim)}
+.gr.click:hover{background:var(--muted);cursor:pointer}
+.val{color:var(--dim)}
+.sw{width:32px;height:19px;border-radius:999px;background:var(--done);position:relative;flex:none}
+.sw::after{content:"";position:absolute;top:2px;right:2px;width:15px;height:15px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.2)}
+.sw.off{background:var(--line)}.sw.off::after{right:auto;left:2px}
+.gh{font-size:11px;font-weight:600;color:var(--dim);margin:0 0 6px 4px;text-transform:uppercase;letter-spacing:.05em;display:flex}
+.gh span{margin-left:auto;text-transform:none;letter-spacing:0;font-weight:400}
+.badge{font-size:11px;padding:2px 8px;border-radius:999px;background:var(--muted);color:var(--dim);white-space:nowrap}
+.badge.ok{background:color-mix(in srgb,var(--done) 14%,transparent);color:var(--done)}
+.badge.warn{background:color-mix(in srgb,var(--needs) 14%,transparent);color:var(--needs)}
+.badge.bad{background:color-mix(in srgb,var(--failed) 12%,transparent);color:var(--failed)}
+.select{height:28px;border:1px solid var(--line);border-radius:7px;padding:0 10px;display:inline-flex;align-items:center;gap:8px;background:var(--bg);font-size:12.5px;white-space:nowrap}
+.radio{display:grid;gap:6px}
+.radio label{display:flex;gap:8px;align-items:flex-start;font-size:12.5px}
+.radio i{width:14px;height:14px;border-radius:50%;border:1.5px solid var(--line);flex:none;margin-top:2px}
+.radio i.on{border:4px solid var(--accent)}
+.back{color:var(--dim);font-size:12.5px;margin-bottom:12px;display:inline-flex;gap:6px}
+.back:hover{color:var(--fg)}
+.logs{font:11px/1.6 var(--mono);background:var(--muted);border-radius:8px;padding:10px 12px;color:var(--dim);max-height:140px;overflow:auto;white-space:pre}
+.qr{display:grid;grid-template-columns:repeat(25,5px);gap:0;padding:10px;background:#fff;border-radius:10px;border:1px solid var(--line);flex:none}
+.qr i{width:5px;height:5px}.qr i.b{background:#111}
+.pairbox{display:flex;gap:18px;align-items:center;border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:18px;background:var(--panel)}
+.check{display:flex;gap:8px;align-items:center;font-size:12.5px;padding:3px 0}
+/* add a computer */
+.dlg{width:520px;background:var(--bg);border:1px solid var(--line);border-radius:14px;box-shadow:0 30px 70px rgba(0,0,0,.35);padding:24px}
+.dlg h3{margin:0;font-size:15px;display:flex;align-items:center;gap:6px}.dlg .sub{color:var(--dim);font-size:12.5px;margin-top:4px}
+.choices{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:20px}
+.choice{border:1px solid var(--line);background:var(--panel);border-radius:12px;padding:16px;text-align:left;display:grid;gap:10px}
+.choice:hover{border-color:color-mix(in srgb,var(--fg) 25%,transparent)}
+.choice.dis{opacity:.55;cursor:default}
+.choice .ic{width:40px;height:40px;border-radius:10px;background:var(--bg);display:grid;place-items:center;font-size:18px;box-shadow:var(--shadow)}
+.num{width:24px;height:24px;border-radius:50%;background:var(--muted);display:grid;place-items:center;font-size:11px;font-weight:600;flex:none}
+.ol{display:grid;gap:16px;margin-top:20px}.ol>div{display:flex;gap:12px}.ol .c{flex:1;display:grid;gap:8px}
+.cmd{display:flex;justify-content:space-between;align-items:center;border:1px solid var(--line);background:var(--muted);border-radius:9px;padding:5px 5px 5px 12px;font-family:var(--mono)}
+.input{height:32px;border:1px solid var(--line);border-radius:8px;padding:0 10px;display:flex;align-items:center;background:var(--bg);flex:1;color:var(--dim)}
+.foot{display:flex;justify-content:flex-end;gap:8px;margin-top:22px}
+.target{border:1px solid var(--line);background:var(--panel);border-radius:12px;padding:16px;display:flex;gap:12px;align-items:center;margin-top:18px}
+.target .ic{width:40px;height:40px;border-radius:10px;background:var(--bg);display:grid;place-items:center;font-size:18px;box-shadow:var(--shadow)}
+.toast{position:absolute;bottom:20px;left:50%;transform:translateX(-50%);background:var(--fg);color:var(--bg);border-radius:10px;padding:9px 14px;font-size:12.5px;z-index:30}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><symbol id="i-laptop" viewBox="0 0 24 24"><path d="M20 16V7a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v9m16 0H4m16 0 1.28 2.55a1 1 0 0 1-.9 1.45H3.62a1 1 0 0 1-.9-1.45L4 16"/></symbol><symbol id="i-monitor" viewBox="0 0 24 24"><rect width="20" height="14" x="2" y="3" rx="2"/><path d="M8 21h8M12 17v4"/></symbol><symbol id="i-server" viewBox="0 0 24 24"><rect width="20" height="8" x="2" y="2" rx="2"/><rect width="20" height="8" x="2" y="14" rx="2"/><path d="M6 6h.01M6 18h.01"/></symbol><symbol id="i-phone" viewBox="0 0 24 24"><rect width="14" height="20" x="5" y="2" rx="2"/><path d="M12 18h.01"/></symbol><symbol id="i-folder" viewBox="0 0 24 24"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></symbol><symbol id="i-volume" viewBox="0 0 24 24"><path d="M11 5 6 9H2v6h4l5 4V5z"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></symbol><symbol id="i-volume-x" viewBox="0 0 24 24"><path d="M11 5 6 9H2v6h4l5 4V5z"/><path d="m22 9-6 6M16 9l6 6"/></symbol><symbol id="i-bell" viewBox="0 0 24 24"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></symbol><symbol id="i-trash" viewBox="0 0 24 24"><path d="M3 6h18M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></symbol><symbol id="i-pointer" viewBox="0 0 24 24"><path d="m4 4 7.07 16.97 2.51-7.39 7.39-2.51L4 4z"/></symbol><symbol id="i-settings" viewBox="0 0 24 24"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></symbol><symbol id="i-contrast" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 18a6 6 0 0 0 0-12v12z"/></symbol><symbol id="i-pencil" viewBox="0 0 24 24"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></symbol><symbol id="i-new" viewBox="0 0 24 24"><path d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.4 2.6a2.1 2.1 0 1 1 3 3L12 15l-4 1 1-4Z"/></symbol><symbol id="i-external" viewBox="0 0 24 24"><path d="M15 3h6v6M10 14 21 3M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></symbol><symbol id="i-rotate" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></symbol><symbol id="i-copy" viewBox="0 0 24 24"><rect width="14" height="14" x="8" y="8" rx="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></symbol><symbol id="i-stop" viewBox="0 0 24 24"><rect width="14" height="14" x="5" y="5" rx="2"/></symbol><symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></symbol><symbol id="i-panel-left" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/></symbol><symbol id="i-panel-right" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M15 3v18"/></symbol><symbol id="i-more" viewBox="0 0 24 24"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></symbol><symbol id="i-plus" viewBox="0 0 24 24"><path d="M5 12h14M12 5v14"/></symbol><symbol id="i-maximize" viewBox="0 0 24 24"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></symbol><symbol id="i-swap" viewBox="0 0 24 24"><path d="M8 3 4 7l4 4M4 7h16M16 21l4-4-4-4M20 17H4"/></symbol><symbol id="i-lock" viewBox="0 0 24 24"><rect width="18" height="11" x="3" y="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></symbol><symbol id="i-clip" viewBox="0 0 24 24"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/></symbol><symbol id="i-at" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M16 8v5a3 3 0 0 0 6 0v-1a10 10 0 1 0-4 8"/></symbol><symbol id="i-up" viewBox="0 0 24 24"><path d="m5 12 7-7 7 7M12 19V5"/></symbol><symbol id="i-left" viewBox="0 0 24 24"><path d="m12 19-7-7 7-7M19 12H5"/></symbol><symbol id="i-hand" viewBox="0 0 24 24"><path d="M18 11V6a2 2 0 0 0-4 0M14 10V4a2 2 0 0 0-4 0v2M10 10.5V6a2 2 0 0 0-4 0v8"/><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-6-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"/></symbol><symbol id="i-moon" viewBox="0 0 24 24"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></symbol><symbol id="i-pin" viewBox="0 0 24 24"><path d="M12 17v5M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"/></symbol><symbol id="i-archive" viewBox="0 0 24 24"><rect width="20" height="5" x="2" y="3" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8M10 12h4"/></symbol><symbol id="i-terminal" viewBox="0 0 24 24"><path d="m4 17 6-6-6-6M12 19h8"/></symbol><symbol id="i-file" viewBox="0 0 24 24"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/></symbol><symbol id="i-image" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21"/></symbol><symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20M2 12h20"/></symbol><symbol id="i-keyboard" viewBox="0 0 24 24"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="M6 8h.01M10 8h.01M14 8h.01M18 8h.01M8 12h.01M12 12h.01M16 12h.01M7 16h10"/></symbol><symbol id="i-message" viewBox="0 0 24 24"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/></symbol></svg>
+<div class="bar">
+  <b>Mob Desktop redesign</b>
+  <button data-s="chat">Chat · this computer</button>
+  <button data-s="chat-steps">· steps open</button>
+  <button data-s="remote">Chat · Office Mac</button>
+  <button data-s="remote-live">· screen live</button>
+  <button data-s="remote-control">· in control</button>
+  <button data-s="remote-steps">· steps open</button>
+  <button data-s="menu">Conversation menu</button>
+  <button data-s="needs">Needs you</button>
+  <button data-s="palette">⌘K search &amp; ask</button>
+  <button data-s="settings-app-general">Settings · General</button>
+  <button data-s="settings-app-appearance">· Appearance</button>
+  <button data-s="settings-app-notifications">· Notifications</button>
+  <button data-s="settings-local-general">Settings · This computer</button>
+  <button data-s="settings-local-agents">· Agents</button>
+  <button data-s="settings-local-service">· Service</button>
+  <button data-s="settings-local-devices">· Devices &amp; access</button>
+  <button data-s="settings-remote-connection">Settings · Office Mac</button>
+  <button data-s="add">Add a computer</button>
+  <span class="grow"></span><button id="theme">Dark</button>
+</div>
+
+<div class="win" id="win">
+  <!-- ============ Sidebar: every computer, always visible ============ -->
+  <aside class="side">
+    <div class="side-top"><div class="lights"><i></i><i></i><i></i></div><span class="brand"><img src="logo.svg" alt="">Mob</span><button class="tb" title="Hide sidebar ⌘\"><svg class='i'><use href='#i-panel-left'/></svg></button><button class="tb" title="New chat ⌘N"><svg class='i'><use href='#i-new'/></svg></button></div>
+    <button class="ask" data-s="palette"><svg class='i'><use href='#i-search'/></svg> Search or ask an agent…<kbd>⌘K</kbd></button>
+    <div class="row" data-s="needs" id="rowNeeds"><span style="color:var(--needs)">◆</span>Needs you<span class="needs-badge">2</span></div>
+    <div class="nav">
+      <div class="sect">Computers<button class="tb" data-s="add" title="Add a computer"><svg class='i'><use href='#i-plus'/></svg></button></div>
+
+      <div class="cg" data-cg>
+        <div class="ch" data-toggle><span class="caret">▾</span><span class="ic"><svg class='i'><use href='#i-laptop'/></svg></span>This computer<span class="dot"></span><span class="cnt meta">1 ◆</span><span class="plus" title="New chat on This computer"><svg class='i'><use href='#i-plus'/></svg></span></div>
+        <div class="cl">
+          <div class="chat" data-s="chat" id="cLocal"><span class="av claude">C</span><div style="min-width:0;flex:1"><div class="t">Fix the failing build</div><div class="m"><span class="st needs">◆ Needs you</span>· @web</div></div></div>
+          <div class="chat"><span class="av codex">X</span><div style="min-width:0;flex:1"><div class="t">Release notes for 0.5.2</div><div class="m"><span class="st working"><span class="spin"></span>Writing CHANGELOG.md</span></div></div></div>
+          <div class="chat"><span class="av claude">C</span><div style="min-width:0;flex:1"><div class="t">Clean up Downloads</div><div class="m"><span class="st done">✓ Done · 2h</span></div></div></div>
+          <button class="more">Show 14 more</button>
+        </div>
+      </div>
+
+      <div class="cg" data-cg>
+        <div class="ch" data-toggle><span class="caret">▾</span><span class="ic"><svg class='i'><use href='#i-monitor'/></svg></span>Office Mac<span class="dot"></span><span class="cnt meta">1 ◆</span><span class="plus" title="New chat on Office Mac"><svg class='i'><use href='#i-plus'/></svg></span></div>
+        <div class="cl">
+          <div class="chat" data-s="remote" id="cRemote"><span class="av claude">C</span><div style="min-width:0;flex:1"><div class="t">Book flights to Tokyo</div><div class="m"><span class="st needs">◆ Needs you</span>· @travel</div></div></div>
+          <div class="chat"><span class="av codex">X</span><div style="min-width:0;flex:1"><div class="t">Rotate staging certificates</div><div class="m"><span class="st working"><span class="spin"></span>certbot renew</span></div></div></div>
+          <div class="chat"><span class="av codex">X</span><div style="min-width:0;flex:1"><div class="t">Weekly sales report</div><div class="m"><span class="st done">✓ Done · 9:12</span></div></div></div>
+          <button class="more">Show 6 more</button>
+        </div>
+      </div>
+
+      <div class="cg closed" data-cg>
+        <div class="ch" data-toggle><span class="caret">▾</span><span class="ic"><svg class='i'><use href='#i-server'/></svg></span><span style="color:var(--dim)">Linux box</span><span class="dot off"></span><span class="cnt meta">offline</span><span class="plus"><svg class='i'><use href='#i-plus'/></svg></span></div>
+        <div class="cl">
+          <div class="chat"><span class="av codex">X</span><div style="min-width:0;flex:1"><div class="t">Investigate memory leak</div><div class="m"><span class="st failed">✕ Stopped: went offline</span></div></div></div>
+        </div>
+      </div>
+    </div>
+    <div class="side-foot"><div class="row" data-s="settings-app-general"><svg class='i'><use href='#i-settings'/></svg> Settings</div></div>
+  </aside>
+
+  <!-- ============ Main ============ -->
+  <section class="main">
+    <div class="toolbar" id="toolbar">
+      <div><div class="title" id="tTitle">Fix the failing build</div><div class="sub" id="tSub"><span class="av claude" style="width:14px;height:14px;font-size:8px;border-radius:4px">C</span>Claude Code · @web · <svg class='i'><use href='#i-laptop'/></svg> This computer</div></div>
+      <span class="grow"></span>
+      <span class="useind" id="useInd" title="An agent is clicking and typing on this computer"><span class="pulse"></span>Agent is using the screen</span>
+      <button class="tb" title="Context panel ⌥⌘0" id="inspBtn"><svg class='i'><use href='#i-panel-right'/></svg></button>
+      <button class="tb" id="moreBtn" title="Conversation menu"><svg class='i'><use href='#i-more'/></svg></button>
+    </div>
+    <div class="content">
+      <div class="thread" id="thread">
+        <div class="scroll"><div class="col">
+          <!-- local conversation -->
+          <div class="you loc">The CI build on main is failing. Fix it, run the tests and push.</div>
+          <div class="reply loc">
+            <div class="agent-head"><span class="av claude">C</span><b>Claude Code</b> @web · Sonnet</div>
+            <button class="fold" data-fold>▸ Worked for 1m 42s · read the CI log, ran tests, edited 2 files, asked @api</button><div class="steps hidden"><div class="step"><span class="si"><svg class='i'><use href='#i-terminal'/></svg></span><div class="sb"><div><code>gh run view 2214 --log-failed</code></div><div class="sm">Read the CI log</div></div><span class="sr">1.2 s</span></div><div class="step"><span class="si"><svg class='i'><use href='#i-terminal'/></svg></span><div class="sb"><div><code>npm test</code></div><div class="sm"><span class="bad2">exit 1</span> · 2 failed</div><div class="out2">✕ stream.test.mjs › opens a session
+  TypeError: options.quality is not a function</div></div><span class="sr">8.4 s</span></div><div class="step"><span class="si"><svg class='i'><use href='#i-file'/></svg></span><div class="sb"><div>Edited <code>src/lib/stream.ts</code></div><div class="sm"><span class="ok2">+4</span> <span class="bad2">−2</span></div></div></div><div class="step"><span class="si"><svg class='i'><use href='#i-file'/></svg></span><div class="sb"><div>Edited <code>src/hooks/useLive.ts</code></div><div class="sm"><span class="ok2">+2</span> <span class="bad2">−1</span></div></div></div><div class="step"><span class="si"><svg class='i'><use href='#i-message'/></svg></span><div class="sb"><div>Asked <b>@api</b>: “Is StreamOptions v2 final?”</div><div class="sm">@api: “Yes, use v2”</div></div><span class="sr">18 s</span></div><div class="step"><span class="si"><svg class='i'><use href='#i-terminal'/></svg></span><div class="sb"><div><code>npm test</code></div><div class="sm"><span class="ok2">exit 0</span> · 141 passed</div></div><span class="sr">9.1 s</span></div></div>
+            <p>The build broke because <code>StreamSession</code> changed its options type upstream. I updated the two call sites; all 141 tests pass now.</p>
+          </div>
+          <div class="askcard loc">
+            <div class="st needs">◆ Approval needed</div>
+            <div class="q">Push 1 commit to <code>origin/main</code>?</div>
+            <div class="d">fix(stream): adapt to the new StreamSession options</div>
+            <div class="acts"><button class="btn">Approve</button><button class="btn sec">Deny</button><button class="btn ghost">Reply…</button></div>
+          </div>
+          <!-- remote conversation -->
+          <div class="you rem">Find the cheapest morning flight to Tokyo on Oct 20 and book it. Ask me before paying.</div>
+          <div class="reply rem">
+            <div class="agent-head"><span class="av claude">C</span><b>Claude Code</b> @travel · Sonnet</div>
+            <button class="fold" data-fold>▸ Worked for 7m · used Safari on Office Mac, compared 4 airlines</button><div class="steps hidden"><div class="step"><span class="si"><svg class='i'><use href='#i-globe'/></svg></span><div class="sb"><div>Opened Safari</div><div class="sm">ana.co.jp, jal.co.jp, skyscanner.jp, google.com/travel</div></div><span class="sr">10:11</span></div><div class="step"><span class="si"><svg class='i'><use href='#i-image'/></svg></span><div class="sb"><div>Took 6 screenshots</div><div class="sm">fare tables</div><div class="shots"><i></i><i></i><i></i></div></div><span class="sr">10:13</span></div><div class="step"><span class="si"><svg class='i'><use href='#i-pointer'/></svg></span><div class="sb"><div>Clicked “10:25 NH10 · ¥84,200”</div></div><span class="sr">10:16</span></div><div class="step"><span class="si"><svg class='i'><use href='#i-keyboard'/></svg></span><div class="sb"><div>Typed passenger details</div><div class="sm">from your saved profile</div></div><span class="sr">10:17</span></div></div>
+            <p>ANA NH10 at 10:25 is the cheapest morning option (¥84,200, refundable until Oct 18). The booking form is filled in.</p>
+          </div>
+          <div class="askcard rem">
+            <div class="st needs">◆ Approval needed</div>
+            <div class="q">Pay ¥84,200 to ANA for NH10?</div>
+            <div class="d">Economy · seat 34K · card ending 4421</div>
+            <div class="acts"><button class="btn">Pay</button><button class="btn sec">Don't pay</button><button class="btn ghost" data-scr="live">Look at the screen</button></div>
+          </div>
+        </div></div>
+        <div class="composer"><div class="cbox">
+          <div class="ph" id="cph">Reply to @web, or @mention another agent…</div>
+          <div class="crow"><span class="pill"><span class="av claude" style="width:16px;height:16px;font-size:9px;border-radius:4px">C</span>Claude Code ▾</span><span class="pill">Sonnet · high ▾</span><button class="cb" title="Attach files or images"><svg class='i'><use href='#i-clip'/></svg></button><button class="cb" title="Mention an agent (@)"><svg class='i'><use href='#i-at'/></svg></button><button class="send"><svg class='i'><use href='#i-up'/></svg></button></div>
+        </div></div>
+      </div>
+
+      <!-- Needs you: everything waiting, across computers -->
+      <div class="needsview hidden" id="needsView"><div class="inner">
+        <div style="display:flex;align-items:baseline;gap:10px"><h1>Needs you</h1><span class="meta">2 waiting on 2 computers</span></div>
+        <div class="ncard sel">
+          <div class="top"><span class="av claude">C</span>@travel · Book flights to Tokyo · <svg class='i'><use href='#i-monitor'/></svg> Office Mac · 2 min</div>
+          <div class="q">Pay ¥84,200 to ANA for NH10?</div><div class="meta">Economy · seat 34K · card ending 4421</div>
+          <div class="acts"><button class="btn">Pay</button><button class="btn sec">Don't pay</button><button class="btn ghost" data-s="remote">Open conversation</button></div>
+        </div>
+        <div class="ncard">
+          <div class="top"><span class="av claude">C</span>@web · Fix the failing build · <svg class='i'><use href='#i-laptop'/></svg> This computer · 5 min</div>
+          <div class="q">Push 1 commit to origin/main?</div>
+          <div class="acts"><button class="btn sec">Approve</button><button class="btn sec">Deny</button><button class="btn ghost" data-s="chat">Open conversation</button></div>
+        </div>
+        <div class="ncard" style="opacity:.6">
+          <div class="top"><span class="av codex">X</span>@ops · Rotate staging certificates · answered 10 min ago</div>
+          <div class="q" style="font-weight:500">Which environment? → <b>staging</b></div>
+        </div>
+        <div class="caught"><img src="logo.svg" alt="">That's everything. Screen Buddy tells you when an agent needs you again.</div>
+      </div></div>
+
+      <!-- Context panel: who is in it, what happened; details on demand -->
+      <aside class="insp" id="insp">
+        <div class="scrw rem" id="scrw" data-state="asleep">
+          <div class="ih">Screen<span>Office Mac</span></div>
+          <div class="scr2" title="Click to wake">
+            <div class="snap"><i style="left:10%;top:12%;width:50%;height:56%"></i><i style="left:42%;top:30%;width:46%;height:52%;opacity:.75"></i><span class="cur2"><svg class='i'><use href='#i-pointer'/></svg><span>@travel</span></span></div>
+            <div class="sleepov"><svg class='i'><use href='#i-moon'/></svg><b>Asleep</b><span>Click to wake · last picture 10:16</span></div>
+            <div class="livechip"><i></i>Live · LAN · 30 fps</div>
+            <div class="ctlbar"><svg class='i'><use href='#i-hand'/></svg>You're in control<button data-scr="live">Release<kbd>esc</kbd></button></div>
+            <div class="tools"><button class="tbx" data-scr="control" title="Take control: your clicks and keys go to Office Mac"><svg class='i'><use href='#i-hand'/></svg>Take control</button><span class="grow"></span><button class="tbx" id="sndBtn" title="Sound off: turn on"><svg class='i'><use href='#i-volume-x'/></svg></button><button class="tbx" title="Open in its own window"><svg class='i'><use href='#i-maximize'/></svg></button><button class="tbx" data-scr="asleep" title="Put the screen to sleep"><svg class='i'><use href='#i-moon'/></svg></button></div>
+          </div>
+        </div>
+        <div class="ibody">
+          <div data-ip="activity" style="display:grid;gap:14px">
+            <div class="ih" style="margin:12px 0 -4px">Activity</div>
+            
+            <div class="tl loc"><div class="e ok"><span class="when">10:02</span><span class="av claude by">C</span>Read the CI log<div class="s">GitHub Actions · run #2214</div></div><div class="e ok"><span class="when">10:02</span><span class="av claude by">C</span>Ran npm test<div class="s">2 failed · stream.test.mjs</div></div><div class="e ok"><span class="when">10:03</span><span class="av claude by">C</span>Edited 2 files<div class="s">stream.ts, useLive.ts</div></div><div class="e ok"><span class="when">10:03</span><span class="av claude by">C</span>Asked @api<div class="s">"Is StreamOptions v2 final?"</div></div><div class="e ok"><span class="when">10:03</span><span class="av codex by">X</span>@api answered<div class="s">"Yes, use v2"</div></div><div class="e ok"><span class="when">10:04</span><span class="av claude by">C</span>Ran npm test<div class="s">141 passed</div></div><div class="e now"><span class="when">10:04</span><span class="av claude by">C</span>Asked you<div class="s">Approve git push origin main</div></div></div>
+            <div class="tl rem"><div class="e ok"><span class="when">10:11</span><span class="av claude by">C</span>Opened Safari<div class="s">ana.co.jp, jal.co.jp +2</div></div><div class="e ok"><span class="when">10:13</span><span class="av claude by">C</span>Took 6 screenshots<div class="s">fare tables</div></div><div class="e ok"><span class="when">10:16</span><span class="av claude by">C</span>Picked ANA NH10<div class="s">¥84,200 · cheapest morning flight</div></div><div class="e ok"><span class="when">10:17</span><span class="av claude by">C</span>Typed passenger details<div class="s">from your saved profile</div></div><div class="e now"><span class="when">10:18</span><span class="av claude by">C</span>Asked you<div class="s">Pay ¥84,200</div></div></div>
+          </div>
+          </div>
+        <details class="adv">
+          <summary>Details</summary>
+          <div class="kv loc"><span>Computer</span><span><svg class='i'><use href='#i-laptop'/></svg> This computer</span><span>Works in</span><span class="mono">~/Mob/web</span><span>Model</span><span>Sonnet · high</span><span>Started</span><span>10:02 · 1m 42s</span><span>Usage</span><span>18.2k tokens · $0.08</span><span>ID</span><span class="mono">9c1e…4f2a</span></div>
+          <div class="kv rem"><span>Computer</span><span><svg class='i'><use href='#i-monitor'/></svg> Office Mac</span><span>Works in</span><span class="mono">~/Mob</span><span>Model</span><span>Sonnet · high</span><span>Started</span><span>10:11 · 7m</span><span>Usage</span><span>41.5k tokens · $0.19</span><span>ID</span><span class="mono">2b7d…a019</span></div>
+        </details>
+      </aside>
+    </div>
+  </section>
+
+  <!-- ============ ⌘K: search, ask, commands in one place ============ -->
+  <div class="overlay top hidden" id="palette"><div class="pal">
+    <div class="in"><svg class='i'><use href='#i-search'/></svg> <span>release notes</span><span class="cur"></span><span class="grow"></span><kbd>esc</kbd></div>
+    <div class="grp">
+      <div class="gh">Ask an agent</div>
+      <div class="it sel"><span class="av claude">C</span>Ask Claude Code on <svg class='i'><use href='#i-laptop'/></svg> This computer: “release notes”<span class="k">↵</span></div>
+      <div class="it"><span class="av claude">C</span>Ask on <svg class='i'><use href='#i-monitor'/></svg> Office Mac<span class="k">⌘2 ↵</span></div>
+      <div class="it"><span style="width:20px;text-align:center"><svg class='i'><use href='#i-swap'/></svg></span>Pick another agent or computer…<span class="k">tab</span></div>
+    </div>
+    <div class="grp" style="border-top:1px solid var(--line)">
+      <div class="gh">Conversations</div>
+      <div class="it"><span class="av codex">X</span>Release notes for 0.5.2<span class="meta">· <svg class='i'><use href='#i-laptop'/></svg> working</span><span class="k">⌘↵ open</span></div>
+      <div class="it"><span class="av claude">C</span>Release notes for 0.5.1<span class="meta">· <svg class='i'><use href='#i-laptop'/></svg> Nov 10</span></div>
+    </div>
+    <div class="grp" style="border-top:1px solid var(--line)">
+      <div class="gh">Commands</div>
+      <div class="it"><svg class='i'><use href='#i-pencil'/></svg> New chat on This computer<span class="k">⌘N</span></div>
+      <div class="it"><svg class='i'><use href='#i-plus'/></svg> Add a computer</div>
+      <div class="it"><svg class='i'><use href='#i-settings'/></svg> Open Settings<span class="k">⌘,</span></div>
+    </div>
+    <div class="ft"><span>↵ ask or open</span><span>↑↓ move</span><span>tab change agent</span><span>⌘1–9 pick computer</span></div>
+  </div></div>
+
+  <!-- ============ Settings ============ -->
+  <div class="overlay hidden" id="settings"><div class="sheet">
+    <nav class="snav">
+      <div class="row" data-sp="app-general"><svg class='i'><use href='#i-settings'/></svg> General</div><div class="row" data-sp="app-appearance"><svg class='i'><use href='#i-contrast'/></svg> Appearance</div><div class="row" data-sp="app-notifications"><svg class='i'><use href='#i-bell'/></svg> Notifications</div>
+      <div class="sect">Computers</div>
+      <div class="row" data-sp="local" id="navLocal"><svg class='i'><use href='#i-laptop'/></svg> This computer<span class="dot" style="margin-left:auto"></span></div>
+      <div class="row" data-sp="remote" id="navRemote"><svg class='i'><use href='#i-monitor'/></svg> Office Mac<span class="dot" style="margin-left:auto"></span></div>
+      <div class="row"><svg class='i'><use href='#i-server'/></svg> Linux box<span class="dot off" style="margin-left:auto"></span></div>
+      <div class="row" data-s="add" style="color:var(--accent)"><svg class='i'><use href='#i-plus'/></svg> Add a computer</div>
+      <div style="margin-top:auto" class="row" data-s="chat">Done</div>
+    </nav>
+    <div class="spage">
+      <div class="phead" id="sHead"><span class="cic" id="sIc"><svg class='i'><use href='#i-laptop'/></svg></span><div><h2 id="sName">This computer</h2><div class="meta" id="sSub"><span class="dot"></span> Ready · mobd 0.5.2 · reachable by 2 devices</div></div></div>
+      <div class="tabs" id="stabs"></div>
+
+      <!-- App: General -->
+      <div data-st="app-general" class="hidden">
+        <h2 class="ptitle">General</h2>
+        <div class="about"><img src="logo.svg" alt="Mob"><div><div class="aname">Mob</div><div class="meta">Version 0.6.0 · up to date</div><div class="meta">Mob programming with your AI agents.</div></div><span class="grow"></span><button class="tb" title="Check for updates"><svg class='i'><use href='#i-rotate'/></svg></button></div>
+        <div class="gh">Startup</div>
+        <div class="group"><div class="gr"><div class="l">Open Mob at login</div><span class="sw off"></span></div><div class="gr"><div class="l">Keep running in the menu bar</div><span class="sw"></span></div></div>
+        <div class="gh">Updates</div>
+        <div class="group"><div class="gr"><div class="l">Update automatically</div><span class="sw"></span></div><div class="gr"><div class="l">Release channel</div><span class="select">Stable ▾</span></div></div>
+        <div class="gh">Conversations</div>
+        <div class="group"><div class="gr"><div class="l">Saved copies on this device</div><span class="val">182 MB of 500 MB</span><button class="tb" title="Clear saved copies"><svg class='i'><use href='#i-trash'/></svg></button></div><div class="gr"><div class="l">Pairing credentials</div><span class="badge ok">Keychain</span></div></div>
+        <div class="gh">Keyboard</div>
+        <div class="group"><div class="gr"><div class="l">Search or ask an agent</div><span class="key">⌘K</span><button class="tb" title="Change shortcut"><svg class='i'><use href='#i-pencil'/></svg></button></div><div class="gr"><div class="l">New chat</div><span class="key">⌘N</span><button class="tb" title="Change shortcut"><svg class='i'><use href='#i-pencil'/></svg></button></div><div class="gr"><div class="l">Needs you</div><span class="key">⌘J</span><button class="tb" title="Change shortcut"><svg class='i'><use href='#i-pencil'/></svg></button></div><div class="gr"><div class="l">Show Mob from anywhere</div><span class="key">⌥Space</span><button class="tb" title="Change shortcut"><svg class='i'><use href='#i-pencil'/></svg></button></div></div>
+        <div class="gh">Help</div>
+        <div class="group"><div class="gr"><div class="l">App log</div><button class="tb" title="Open the log"><svg class='i'><use href='#i-external'/></svg></button></div><div class="gr"><div class="l">What is Mob?</div><button class="tb" title="Open mymob.dev"><svg class='i'><use href='#i-external'/></svg></button></div><div class="gr"><div class="l">Licenses</div><button class="tb" title="Show licenses"><svg class='i'><use href='#i-external'/></svg></button></div></div>
+      </div>
+
+      <!-- App: Appearance -->
+      <div data-st="app-appearance" class="hidden">
+        <h2 class="ptitle">Appearance</h2>
+        <div class="gh">Theme</div>
+        <div class="themes">
+          <button class="th on" data-theme="system"><div class="pv" style="background:linear-gradient(135deg,#fff 50%,#17171c 50%)"></div>System</button>
+          <button class="th" data-theme="light"><div class="pv"><i class="s" style="background:#f4f4f6"></i><i class="m" style="background:#fff"></i></div>Light</button>
+          <button class="th" data-theme="dark"><div class="pv"><i class="s" style="background:#1e1e24"></i><i class="m" style="background:#17171c"></i></div>Dark</button>
+        </div>
+        <div class="gh">Layout</div>
+        <div class="group"><div class="gr"><div class="l">Density</div><span class="segc"><span class="on">Comfortable</span><span>Compact</span></span></div><div class="gr"><div class="l">Text size</div><span class="meta" style="font-size:11px">A</span><span class="slider"><i></i></span><span class="meta" style="font-size:15px">A</span></div><div class="gr"><div class="l">Conversations per computer</div><span class="select">3 recent ▾</span></div><div class="gr"><div class="l">Agent steps in replies</div><span class="select">Folded ▾</span></div><div class="gr"><div class="l">Side panel</div><span class="sw"></span></div></div>
+      </div>
+
+      <!-- App: Notifications -->
+      <div data-st="app-notifications" class="hidden">
+        <h2 class="ptitle">Notifications</h2>
+        <div class="group"><div class="gr"><div class="l"><b>Allow notifications</b><div class="h">macOS: allowed · banners</div></div><span class="sw"></span></div></div>
+        <div class="gh">Tell me when</div>
+        <div class="group"><div class="gr"><div class="l"><span class="st needs">◆</span> An agent needs you</div><span class="sw"></span></div><div class="gr"><div class="l"><span class="st ok">✓</span> A task finishes</div><span class="sw"></span></div><div class="gr"><div class="l"><span class="st failed">✕</span> A task fails</div><span class="sw"></span></div><div class="gr"><div class="l"><svg class='i'><use href='#i-pointer'/></svg> An agent starts using this computer's screen</div><span class="sw off"></span></div><div class="gr"><div class="l"><svg class='i'><use href='#i-phone'/></svg> A new device pairs with this computer</div><span class="sw"></span></div></div>
+        <div class="gh">Per computer</div>
+        <div class="group"><div class="gr"><div class="l"><svg class='i'><use href='#i-laptop'/></svg> This computer</div><span class="select">Everything ▾</span></div><div class="gr"><div class="l"><svg class='i'><use href='#i-monitor'/></svg> Office Mac</div><span class="select">Everything ▾</span></div><div class="gr"><div class="l"><svg class='i'><use href='#i-server'/></svg> Linux box</div><span class="select">Only when it needs me ▾</span></div></div>
+        <div class="gh">Delivery</div>
+        <div class="group"><div class="gr"><div class="l">Sound</div><span class="select">Glass ▾</span></div><div class="gr"><div class="l">Dock badge</div><span class="sw"></span></div><div class="gr"><div class="l">Only while Mob is in the background</div><span class="sw off"></span></div></div>
+      </div>
+
+      <!-- General · this computer -->
+      <div data-st="local-general">
+        <div class="group">
+          <div class="gr"><div class="l">Name</div><span class="val">This computer</span><button class="tb" title="Rename"><svg class='i'><use href='#i-pencil'/></svg></button></div>
+          <div class="gr"><div class="l">Agents work in</div><code>~/Mob</code><button class="tb" title="Choose folder"><svg class='i'><use href='#i-folder'/></svg></button></div>
+        </div>
+        <div class="gh">At a glance</div>
+        <div class="group">
+          <div class="gr click" data-st-go="agents"><div class="l">Agents</div><span class="val">Claude Code, Codex ready · Pi needs sign-in</span><span class="meta">›</span></div>
+          <div class="gr click" data-st-go="service"><div class="l">Service</div><span class="badge ok">Running</span><span class="meta">›</span></div>
+          <div class="gr click" data-st-go="devices"><div class="l">Devices &amp; access</div><span class="val">iPhone, this app · 1 permission missing</span><span class="meta">›</span></div>
+        </div>
+        
+      </div>
+
+      <!-- Agents (both) -->
+      <div data-st="agents" class="hidden">
+        <div id="agentList">
+          <div class="gh">Agents</div>
+          <div class="group">
+            <div class="gr click" data-agent><span class="av lg claude">C</span><div class="l"><b>Claude Code</b><div class="h">Sonnet · high · asks before tools</div></div><span class="badge ok">Ready</span><span class="sw"></span><span class="meta">›</span></div>
+            <div class="gr click" data-agent><span class="av lg codex">X</span><div class="l"><b>Codex</b><div class="h">gpt-5 · medium · runs without asking</div></div><span class="badge ok">Ready</span><span class="sw"></span><span class="meta">›</span></div>
+            <div class="gr click" data-agent><span class="av lg pi">π</span><div class="l"><b>Pi</b><div class="h">Run <code>pi login</code> in Terminal, then Check again</div></div><span class="badge warn">Not signed in</span><span class="sw off"></span><span class="meta">›</span></div>
+          </div>
+          <div class="group">
+            <div class="gr"><div class="l">Default for new chats</div><span class="select"><span class="av claude" style="width:16px;height:16px;font-size:9px;border-radius:4px">C</span>Claude Code ▾</span></div>
+            <div class="gr"><div class="l">Agents can ask each other</div><span class="sw"></span></div>
+          </div>
+        </div>
+        <div id="agentDetail" class="hidden">
+          <button class="back" data-agent-back>‹ Agents</button>
+          <div class="phead" style="margin-bottom:14px"><span class="av lg claude" style="width:40px;height:40px;font-size:17px;border-radius:10px">C</span><div><h2 style="font-size:15px">Claude Code</h2><div class="meta"><span class="dot"></span> Ready · signed in · v2.4.1</div></div><span class="grow"></span><span class="sw"></span></div>
+          <div class="gh">Defaults</div>
+          <div class="group">
+            <div class="gr"><div class="l">Model</div><span class="select">Sonnet ▾</span></div>
+            <div class="gr"><div class="l">Reasoning effort</div><span class="select">High ▾</span></div>
+            <div class="gr"><div class="l">Handle</div><code>@claude</code><button class="tb" title="Change handle"><svg class='i'><use href='#i-pencil'/></svg></button></div>
+          </div>
+          <div class="gh">Permissions</div>
+          <div class="group"><div class="gr" style="align-items:flex-start"><div class="l radio">
+            <label><i class="on"></i><span><b>Ask before tools</b><div class="h">You approve commands, file edits and screen actions. Safest.</div></span></label>
+            <label><i></i><span><b>Run without asking</b><div class="h">Faster; you only get the agent's own questions.</div></span></label>
+          </div></div></div>
+          <div class="gh">Setup</div>
+          <div class="group">
+            <div class="gr"><div class="l">Program</div><code>~/.local/bin/claude</code><button class="tb" title="Choose program"><svg class='i'><use href='#i-folder'/></svg></button></div>
+            <div class="gr"><div class="l">Loads Claude settings from</div><span class="select">This project only ▾</span></div>
+            <div class="gr"><div class="l">Check</div><span class="st ok">✓ Started and answered in 1.2 s</span><button class="tb" title="Check again"><svg class='i'><use href='#i-rotate'/></svg></button></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Service · this computer -->
+      <div data-st="local-service" class="hidden">
+        <div class="group">
+          <div class="gr"><div class="l"><b>mobd</b></div><span class="badge ok">Running</span><button class="tb" title="Restart"><svg class='i'><use href='#i-rotate'/></svg></button><button class="tb" title="Stop"><svg class='i'><use href='#i-stop'/></svg></button></div>
+          <div class="gr"><div class="l">Start at login</div><span class="sw"></span></div>
+          <div class="gr"><div class="l">Version</div><span class="val">0.5.2 · up to date</span><button class="tb" title="Check for updates"><svg class='i'><use href='#i-rotate'/></svg></button></div>
+        </div>
+        <div class="gh">Reaching this computer</div>
+        <div class="group">
+          <div class="gr"><div class="l">Local network</div><code>192.168.1.24:8080</code></div>
+          <div class="gr"><div class="l">From anywhere<div class="h">Tailscale or Cloudflare</div></div><span class="val">Not set up</span><button class="btn sec sm">Set up…</button></div>
+        </div>
+        <div class="gh">Logs<span><button class="tb" title="Show in Finder"><svg class='i'><use href='#i-external'/></svg></button></span></div>
+        <div class="logs">10:02:14 task 7f3a started · claude · ~/Mob/web
+10:02:51 screenUse agent start · session 9c1e
+10:03:40 pairing: device "iPhone" connected (LAN)
+10:03:56 task 7f3a question: approve "git push origin main"
+10:04:12 screenUse agent end · session 9c1e
+10:05:02 health ok · 3 runners · 1 running</div>
+        <div class="gh" style="margin-top:18px">Advanced</div>
+        <div class="group"><div class="gr"><div class="l">Program</div><code>~/.local/bin/mobd</code></div><div class="gr"><div class="l">Data</div><code>~/.mobd</code><button class="tb" title="Show in Finder"><svg class='i'><use href='#i-external'/></svg></button></div></div>
+        <div class="group"><div class="gr"><div class="l">Uninstall mobd<div class="h">Stops it and removes it from this computer. Conversations and settings stay in ~/.mobd. This computer stays listed as “Not set up”.</div></div><button class="btn danger sm">Uninstall…</button></div></div>
+      </div>
+
+      <!-- Devices & access · this computer -->
+      <div data-st="local-devices" class="hidden">
+        <div class="pairbox hidden" id="pairbox">
+          <div class="qr" id="qr"></div>
+          <div style="display:grid;gap:6px">
+            <b>Scan with Mob on your phone</b>
+            <div class="meta">Or paste the link in Mob on another computer. One use, valid for 10 minutes.</div>
+            <code style="font-size:11px;color:var(--dim)">http://192.168.1.24:8080/pair#v=1&amp;serverId=…</code>
+            <div class="acts" style="margin-top:4px"><button class="tb" title="Copy link"><svg class='i'><use href='#i-copy'/></svg></button><button class="btn ghost sm" id="pairDone">Done</button></div>
+            <div class="meta" style="color:var(--needs)">Local network only: set up “From anywhere” in Service to pair over the internet.</div>
+          </div>
+        </div>
+        <div class="gh">Paired devices<span><button class="btn sm" id="pairBtn"><svg class='i'><use href='#i-phone'/></svg> Pair a phone or computer</button></span></div>
+        <div class="group">
+          <div class="gr"><span style="font-size:18px"><svg class='i'><use href='#i-phone'/></svg></span><div class="l"><b>iPhone</b><div class="h">Paired Oct 26 · last seen 2 days ago</div></div><button class="btn ghost sm" style="color:var(--failed)">Remove</button></div>
+          <div class="gr"><span style="font-size:18px"><svg class='i'><use href='#i-laptop'/></svg></span><div class="l"><b>Mob Desktop</b><div class="h">This app · now</div></div><span class="badge">This app</span></div>
+        </div>
+        <div class="gh">macOS permissions</div>
+        <div class="group">
+          <div class="gr"><div class="l">Accessibility</div><span class="badge ok">Allowed</span></div>
+          <div class="gr"><div class="l">Screen &amp; System Audio Recording<div class="h">Agents take screenshots; phones watch and hear the screen</div></div><button class="btn sm">Allow…</button></div>
+          <div class="gr"><div class="l">Desktop, Documents, Downloads</div><span class="badge ok">Allowed</span></div>
+          <div class="gr"><div class="l">Local Network</div><span class="badge ok">Allowed</span></div>
+        </div>
+      </div>
+
+      <!-- General · remote -->
+      <div data-st="remote-general" class="hidden">
+        <div class="group">
+          <div class="gr"><div class="l">Name</div><span class="val">Office Mac</span><button class="tb" title="Rename"><svg class='i'><use href='#i-pencil'/></svg></button></div>
+          <div class="gr"><div class="l">Status</div><span class="badge ok">Ready</span><span class="val">mobd 0.5.2 · 3 agents</span></div>
+          <div class="gr"><div class="l">Shown there as</div><span class="val">Mob Desktop on MacBook</span></div>
+        </div>
+        <div class="group"><div class="gr"><div class="l">Remove this computer<div class="h">Removes it from this app and this app from its device list. Its conversations stay there.</div></div><button class="btn danger sm">Remove…</button></div></div>
+      </div>
+
+      <!-- Connection · remote -->
+      <div data-st="remote-connection" class="hidden">
+        <div class="gh">Addresses</div>
+        <div class="group">
+          <div class="gr"><span class="dot"></span><div class="l"><b>Remote</b> <span class="badge">In use</span><div class="h mono">office-mac.tail49e461.ts.net · <svg class='i'><use href='#i-lock'/></svg> HTTPS · 38 ms</div></div><button class="tb" title="More"><svg class='i'><use href='#i-more'/></svg></button></div>
+          <div class="gr"><span class="dot off"></span><div class="l"><b>LAN</b><div class="h mono">192.168.1.20:8080 · not encrypted · not reachable now</div></div><button class="btn ghost sm">Use</button><button class="tb" title="More"><svg class='i'><use href='#i-more'/></svg></button></div>
+        </div>
+        <div class="acts" style="margin:-6px 0 18px"><button class="btn sec sm" data-s="add-link"><svg class='i'><use href='#i-plus'/></svg> Add an address…</button><button class="btn ghost sm">Test connection</button></div>
+        <div class="gh">Last test<span>2 min ago</span></div>
+        <div class="group"><div class="gr" style="display:block">
+          <div class="check"><span class="st ok">✓</span>mobd answers · API v3</div>
+          <div class="check"><span class="st ok">✓</span>Live screen over WebRTC (UDP)</div>
+          <div class="check"><span class="st ok">✓</span>Accessibility and Screen Recording allowed there</div>
+          <div class="check"><span class="st needs">◆</span>Pi is not signed in there</div>
+        </div></div>
+        <div class="gh">Screen</div>
+        <div class="group">
+          <div class="gr"><div class="l">Quality</div><span class="select">Auto ▾</span></div>
+          <div class="gr"><div class="l">Sound</div><span class="sw off"></span></div>
+        </div>
+        <div class="gh">Files</div>
+        <div class="group"><div class="gr"><div class="l">Shared folder there</div><code>~/Mob/shared</code><button class="tb" title="Browse"><svg class='i'><use href='#i-folder'/></svg></button></div></div>
+      </div>
+    </div>
+  </div></div>
+
+  <!-- ============ Add a computer ============ -->
+  <div class="overlay hidden" id="add" style="z-index:20"><div class="dlg">
+    <div data-step="link">
+      <h3>Add a computer</h3>
+      <div class="ol">
+        <div><span class="num">1</span><div class="c">On that computer, run<div class="cmd">mobd link <button class="tb" title="Copy"><svg class='i'><use href='#i-copy'/></svg></button></div></div></div>
+        <div><span class="num">2</span><div class="c">Paste the link it prints<div style="display:flex;gap:8px"><span class="input mono">https://…/pair#v=1&amp;serverId=…</span><button class="btn sec" data-step-go="confirm">Paste</button></div></div></div>
+      </div>
+      <div style="border-top:1px solid var(--line);margin-top:18px;padding-top:12px" class="meta">No mobd there yet? <u>Install it <svg class='i'><use href='#i-external'/></svg></u> &nbsp;·&nbsp; <u>Other addresses</u></div>
+      <div class="foot"><button class="btn ghost" data-close-add>Cancel</button></div>
+    </div>
+    <div data-step="confirm" class="hidden">
+      <h3><button class="tb" data-step-go="link"><svg class='i'><use href='#i-left'/></svg></button>Pair with this computer?</h3>
+      <div class="target"><span class="ic"><svg class='i'><use href='#i-monitor'/></svg></span><div><b>office-mac <svg class='i'><use href='#i-pencil'/></svg></b><div class="meta" style="margin-top:2px">office-mac.tail49e461.ts.net · Remote · <svg class='i'><use href='#i-lock'/></svg> HTTPS</div></div></div>
+      <div class="meta" style="margin-top:14px">▸ Shown there as “Mob Desktop on MacBook”</div>
+      <div class="foot"><button class="btn ghost" data-step-go="link">Back</button><button class="btn" id="pairIt">Pair</button></div>
+    </div>
+  </div></div>
+  <div class="menu hidden" id="convMenu">
+    <button><svg class='i'><use href='#i-pencil'/></svg>Rename</button>
+    <button><svg class='i'><use href='#i-pin'/></svg>Pin</button>
+    <button><svg class='i'><use href='#i-archive'/></svg>Archive</button>
+    <button><svg class='i'><use href='#i-panel-right'/></svg>Hide side panel<kbd>⌥⌘0</kbd></button>
+    <hr>
+    <button><svg class='i'><use href='#i-stop'/></svg>Stop the agent<kbd>⌘.</kbd></button>
+    <button class="danger"><svg class='i'><use href='#i-trash'/></svg>Delete…</button>
+  </div>
+  <div class="toast hidden" id="toast">Office Mac is ready</div>
+</div>
+
+<script>
+const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
+const TABS={local:[["general","General"],["agents","Agents"],["service","Service"],["devices","Devices & access"]],
+            remote:[["general","General"],["agents","Agents"],["connection","Connection"]]};
+let comp="local";
+
+function conv(remote){
+  $$(".loc").forEach(e=>e.classList.toggle("hidden",remote));
+  $$(".rem").forEach(e=>e.classList.toggle("hidden",!remote));
+  $("#cLocal").classList.toggle("on",!remote);$("#cRemote").classList.toggle("on",remote);
+  $("#tTitle").textContent=remote?"Book flights to Tokyo":"Fix the failing build";
+  $("#tSub").innerHTML=`<span class="av claude" style="width:14px;height:14px;font-size:8px;border-radius:4px">C</span>Claude Code · ${remote?"@travel · <svg class='i'><use href='#i-monitor'/></svg> Office Mac":"@web with <span class='av codex' style='width:14px;height:14px;font-size:8px;border-radius:4px;display:inline-grid;vertical-align:-3px' title='@api · Codex · answered 1 question'>X</span> @api · <svg class='i'><use href='#i-laptop'/></svg> This computer"}`;
+  $("#cph").textContent=`Reply to ${remote?"@travel":"@web"}, or @mention another agent…`;
+  $("#useInd").classList.toggle("hidden",remote);
+  insp("activity");scr("asleep");
+}
+function insp(k){
+  $$("[data-insp]").forEach(b=>b.classList.toggle("on",b.dataset.insp===k&&b.tagName==="BUTTON"&&b.closest(".seg")));
+  $$("[data-ip]").forEach(p=>p.classList.toggle("hidden",p.dataset.ip!==k));
+}
+function settings(c,tab){
+  comp=c;const local=c==="local";
+  $$(".snav [data-sp]").forEach(r=>r.classList.toggle("on",r.dataset.sp===c));$("#sHead").classList.remove("hidden");$("#stabs").classList.remove("hidden");
+  $("#sIc").innerHTML=local?"<svg class='i'><use href='#i-laptop'/></svg>":"<svg class='i'><use href='#i-monitor'/></svg>";$("#sName").textContent=local?"This computer":"Office Mac";
+  $("#sSub").innerHTML=local?'<span class="dot"></span> Ready · mobd 0.5.2 · reachable by 2 devices':'<span class="dot"></span> Ready · office-mac.tail49e461.ts.net · 38 ms';
+  $("#stabs").innerHTML=TABS[c].map(([k,l])=>`<button data-t="${k}" class="${k===tab?"on":""}">${l}</button>`).join("");
+  const key=tab==="agents"?"agents":`${c}-${tab}`;
+  $$("[data-st]").forEach(p=>p.classList.toggle("hidden",p.dataset.st!==key));
+  $("#agentList").classList.remove("hidden");$("#agentDetail").classList.add("hidden");
+}
+function appPage(k){$$(".snav [data-sp]").forEach(r=>r.classList.toggle("on",r.dataset.sp==="app-"+k));$("#sHead").classList.add("hidden");$("#stabs").classList.add("hidden");$$("[data-st]").forEach(p=>p.classList.toggle("hidden",p.dataset.st!=="app-"+k))}
+function scr(st){$("#scrw").dataset.state=st}
+const ic=n=>"<svg class='i'><use href='#i-"+n+"'/></svg>";
+function addStep(s){$$("[data-step]").forEach(d=>d.classList.toggle("hidden",d.dataset.step!==s))}
+function show(s){
+  $$(".bar [data-s]").forEach(b=>b.classList.toggle("on",b.dataset.s===s));
+  ["palette","settings","add"].forEach(id=>$("#"+id).classList.add("hidden"));
+  $("#toast").classList.add("hidden");$("#convMenu").classList.add("hidden");
+  const needs=s==="needs";
+  $("#needsView").classList.toggle("hidden",!needs);$("#thread").classList.toggle("hidden",needs);
+  $("#insp").classList.toggle("hidden",needs);$("#toolbar").classList.toggle("hidden",needs);
+  $("#rowNeeds").classList.toggle("on",needs);
+  if(needs){$("#cLocal").classList.remove("on");$("#cRemote").classList.remove("on")}
+  if(s==="chat")conv(false);
+  if(s==="remote")conv(true);
+  if(s==="remote-live"||s==="remote-control"){conv(true);scr(s.slice(7))}
+  if(s==="chat-steps"||s==="remote-steps"){conv(s.startsWith("remote"));$$("[data-fold]").forEach(f=>{f.nextElementSibling.classList.remove("hidden");f.textContent="▾"+f.textContent.slice(1)})}
+  if(s==="menu"){conv(false);$("#convMenu").classList.remove("hidden")}
+  if(s==="palette"){conv(false);$("#palette").classList.remove("hidden")}
+  if(s.startsWith("settings")){const[,c,t]=s.split("-");conv(c==="remote");$("#settings").classList.remove("hidden");c==="app"?appPage(t):settings(c,t)}
+  if(s==="add"||s==="add-link"){if($("#settings").classList.contains("hidden"))conv(false);$("#add").classList.remove("hidden");addStep("link");if(!$("#settings").classList.contains("hidden"))return}
+  history.replaceState(null,"","#"+s);
+}
+// a stand-in QR pattern
+(function(){let h="",x=7;for(let i=0;i<625;i++){const r=Math.floor(i/25),c=i%25;
+  const f=(a,b)=>r>=a&&r<a+7&&c>=b&&c<b+7&&(r===a||r===a+6||c===b||c===b+6||(r>a+1&&r<a+5&&c>b+1&&c<b+5));
+  const inF=(r<7&&c<7)||(r<7&&c>17)||(r>17&&c<7);x=(x*1103515245+12345)&0x7fffffff;
+  h+=`<i class="${inF?(f(0,0)||f(0,18)||f(18,0)?"b":""):(x%3===0?"b":"")}"></i>`}$("#qr").innerHTML=h})();
+
+document.addEventListener("keydown",e=>{if(e.key==="Escape"&&$("#scrw").dataset.state==="control")scr("live")});
+document.addEventListener("click",e=>{
+  if(!e.target.closest("#convMenu,#moreBtn"))$("#convMenu").classList.add("hidden");
+  const t=e.target.closest("[data-s],[data-insp],[data-toggle],[data-sp],[data-t],[data-st-go],[data-agent],[data-agent-back],[data-step-go],[data-close-add],[data-theme],[data-fold],[data-scr],.scr2,#moreBtn,#sndBtn,#theme,#inspBtn,#pairBtn,#pairDone,#pairIt");
+  if(!t){if(e.target.classList.contains("overlay"))show(location.hash.includes("remote")?"remote":"chat");return}
+  if(t.id==="theme"){$("#win").classList.toggle("dark");document.body.classList.toggle("dark");t.textContent=$("#win").classList.contains("dark")?"Light":"Dark"}
+  else if(t.hasAttribute("data-fold")){const o=!t.nextElementSibling.classList.toggle("hidden");t.textContent=(o?"▾":"▸")+t.textContent.slice(1)}
+  else if(t.dataset.scr)scr(t.dataset.scr);
+  else if(t.id==="sndBtn"){const on=t.title.startsWith("Sound off");t.innerHTML=ic(on?"volume":"volume-x");t.title=on?"Sound on: turn off":"Sound off: turn on"}
+  else if(t.id==="moreBtn")$("#convMenu").classList.toggle("hidden");
+  else if(t.classList.contains("scr2")){if($("#scrw").dataset.state==="asleep")scr("live")}
+  else if(t.id==="inspBtn")$("#insp").classList.toggle("hidden");
+  else if(t.id==="pairBtn")$("#pairbox").classList.remove("hidden");
+  else if(t.id==="pairDone")$("#pairbox").classList.add("hidden");
+  else if(t.id==="pairIt"){show("remote");$("#toast").classList.remove("hidden");setTimeout(()=>$("#toast").classList.add("hidden"),2200)}
+  else if(t.hasAttribute("data-toggle")){if(e.target.closest(".plus"))return;t.closest("[data-cg]").classList.toggle("closed")}
+  else if(t.dataset.insp)insp(t.dataset.insp);
+  else if(t.dataset.sp){t.dataset.sp.startsWith("app-")?appPage(t.dataset.sp.slice(4)):settings(t.dataset.sp,"general")}
+  else if(t.dataset.theme){const d=t.dataset.theme==="dark";$("#win").classList.toggle("dark",d);document.body.classList.toggle("dark",d);$$("[data-theme]").forEach(x=>x.classList.toggle("on",x===t));$("#theme").textContent=d?"Light":"Dark"}
+  else if(t.dataset.t)settings(comp,t.dataset.t);
+  else if(t.dataset.stGo)settings(comp,t.dataset.stGo);
+  else if(t.hasAttribute("data-agent")){$("#agentList").classList.add("hidden");$("#agentDetail").classList.remove("hidden")}
+  else if(t.hasAttribute("data-agent-back")){$("#agentList").classList.remove("hidden");$("#agentDetail").classList.add("hidden")}
+  else if(t.dataset.stepGo)addStep(t.dataset.stepGo);
+  else if(t.hasAttribute("data-close-add"))$("#add").classList.add("hidden");
+  else if(t.dataset.s==="add"||t.dataset.s==="add-link"){$("#add").classList.remove("hidden");addStep("link")}
+  else show(t.dataset.s);
+});
+show(location.hash.slice(1)||"chat");
+</script>
+</body>
+</html>
