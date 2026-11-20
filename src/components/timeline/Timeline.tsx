@@ -1,9 +1,9 @@
-import { ArrowDown, Check, CircleHelp, Copy, RotateCcw } from "lucide-react";
+import { ArrowDown, Check, Copy, RotateCcw } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { artifactUrl } from "@/api/client";
 import type { ChatMessage, CollabRequest, Task } from "@/api/types";
 import { AuthImage } from "@/components/AuthImage";
-import { Spinner, StatusIcon } from "@/components/StatusIcon";
+import { Spinner, StatusIcon, WaitingIcon } from "@/components/StatusIcon";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { useChat } from "@/hooks/useChat";
@@ -13,13 +13,15 @@ import { MentionText, PeerMessage } from "./Collab";
 import { buildTimeline, type TimelineItem } from "@/lib/timeline";
 import { cn, compactNumber, duration } from "@/lib/utils";
 import { useComposer } from "@/store/composer";
+import { useApp } from "@/store/app";
+import { isLocal } from "@/lib/machines";
 import { ActivityGroup, ActivityRow } from "./activity";
 import { QuestionCard } from "./QuestionCard";
 import { Markdown } from "./Markdown";
 
 const EXAMPLES = [
   { title: "Open a website", prompt: "Open Safari and go to example.com, then tell me the page title." },
-  { title: "Check the screen", prompt: "Take a screenshot and describe what is on the office desktop." },
+  { title: "Check the screen", prompt: "Take a screenshot and describe what is on the screen." },
   { title: "Summarize mail", prompt: "Open Mail and summarize the five most recent unread messages." },
   { title: "Write a note", prompt: "Open TextEdit, create a new document and type today's date." },
 ];
@@ -41,18 +43,23 @@ function UserMessage({ message, task, base }: { message: ChatMessage; task?: Tas
   );
 }
 
-import { RUNNER_LABELS } from "@/components/AgentAvatar";
+import { AgentAvatar, runnerLabel } from "@/components/AgentAvatar";
 
+/** A reply, headed by the agent, its @handle and the model that wrote it. */
 function AssistantMessage({ message }: { message: ChatMessage }) {
-  const runnerName = useChat().session?.runner;
+  const chat = useChat();
+  const task = chat.tasks.find((t) => t.id === message.taskId);
+  const runner = task?.runner ?? chat.session?.runner;
+  const model = task?.model ?? chat.session?.model;
   const [copied, setCopied] = useState(false);
   return (
     <div className="group flex gap-3">
-      <img src="/logo.svg" alt="" className="mt-0.5 size-6 shrink-0" />
+      <AgentAvatar runner={runner} className="mt-0.5 size-6 text-[11px]" />
       <div className="min-w-0 flex-1">
-        <div className="mb-1 flex items-center gap-2 text-xs text-muted-foreground">
-          <span className="font-medium text-foreground/80">Mob</span>
-          <span>{RUNNER_LABELS[runnerName ?? "codex"] ?? runnerName}</span>
+        <div className="mb-1 flex items-center gap-1.5 text-xs text-muted-foreground">
+          <span className="font-semibold text-foreground/85">{runnerLabel(runner)}</span>
+          {chat.session?.handle && <span>@{chat.session.handle}</span>}
+          {model && <span>· {model}</span>}
         </div>
         <Markdown text={message.content} />
         <div className="mt-1 flex h-6 opacity-0 transition-opacity group-hover:opacity-100">
@@ -106,6 +113,17 @@ function TurnFooter({ task, last }: { task: Task; last: boolean }) {
   );
 }
 
+/** Wakes the other computer's screen in the side panel; none for this computer, the user is at it. */
+function remoteScreen(): (() => void) | undefined {
+  const app = useApp.getState();
+  const m = app.machines.find((x) => x.id === app.activeMachineId);
+  if (!m || isLocal(m)) return undefined;
+  return () => {
+    app.togglePreview(true);
+    app.set({ liveConnect: Date.now() });
+  };
+}
+
 function Item({ item, base, last }: { item: TimelineItem; base: string; last: boolean }) {
   const chat = useChat();
   switch (item.type) {
@@ -116,7 +134,7 @@ function Item({ item, base, last }: { item: TimelineItem; base: string; last: bo
     case "assistant":
       return <AssistantMessage message={item.message} />;
     case "question":
-      return <QuestionCard q={item.question} />;
+      return <QuestionCard q={item.question} onScreen={remoteScreen()} />;
     case "steps":
       return (
         <div className="-my-1.5 grid grid-cols-[minmax(0,1fr)] gap-0.5 pl-9">
@@ -143,9 +161,9 @@ function Item({ item, base, last }: { item: TimelineItem; base: string; last: bo
     case "working":
       if (item.waiting && !chat.cancelling) {
         return (
-          <div className="flex items-center gap-2.5 pl-9 text-[13px] text-warning">
-            <CircleHelp className="size-3.5" />
-            <span>Waiting for your answer above · the desktop stays reserved for this turn</span>
+          <div className="flex items-center gap-2 pl-9 text-[13px] font-medium text-warning">
+            <WaitingIcon />
+            <span>Needs you</span>
           </div>
         );
       }
@@ -178,8 +196,7 @@ function EmptyState({ machineName }: { machineName: string }) {
   return (
     <div className="mx-auto flex h-full max-w-[640px] flex-col justify-center px-6 pb-10">
       <img src="/logo.svg" alt="Mob Screen Buddy" className="mb-1 size-20" />
-      <h2 className="mt-3 text-xl font-semibold tracking-tight">What should Mob do on {machineName}?</h2>
-      <p className="mt-1 text-[13px] text-muted-foreground">The agent works on the office desktop. Watch it live on the right.</p>
+      <h2 className="mt-3 text-xl font-semibold tracking-tight">What should an agent do on {machineName}?</h2>
       <div className="mt-6 grid grid-cols-2 gap-2">
         {EXAMPLES.map((e) => (
           <button

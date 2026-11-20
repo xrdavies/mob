@@ -1,4 +1,6 @@
-import { ArrowUp, Bot, Brain, ChevronDown, Cpu, Paperclip, Square, X } from "lucide-react";
+import { ArrowUp, AtSign, Brain, ChevronDown, Cpu, Paperclip, Square, X } from "lucide-react";
+import { AgentAvatar } from "@/components/AgentAvatar";
+import { IconButton } from "@/components/ui/icon-button";
 import { MentionPicker } from "./MentionPicker";
 import { mentionAt, mentionCandidates, mentionSegments, mentionToken, resolveMentions, suggestHandle } from "@/lib/collab";
 import { useEffect, useRef, useState, type ClipboardEvent, type DragEvent } from "react";
@@ -334,7 +336,9 @@ export function Composer({ machineId, machineName, health }: { machineId: string
                 void send();
               }
             }}
-            placeholder={canSteer ? "Add to what the agent is doing… (↵ sends to the running turn)" : busy ? "The agent is working… you can draft the next message" : `Ask Mob to do something on ${machineName}…`}
+            placeholder={canSteer ? "Add to what the agent is doing…" : busy ? "Draft the next message…" : chat.sessionId
+              ? chat.collab ? `Reply${chat.session?.handle ? ` to @${chat.session.handle}` : ""}, or @mention another agent…` : "Reply…"
+              : `Ask ${runner?.label ?? "an agent"} on ${machineName}…`}
             aria-label="Task prompt"
             className="relative block max-h-60 min-h-[44px] w-full resize-none bg-transparent px-3.5 pb-1 pt-3 text-[14px] leading-relaxed outline-none placeholder:text-muted-foreground/70"
           />
@@ -351,18 +355,11 @@ export function Composer({ machineId, machineName, health }: { machineId: string
               e.target.value = "";
             }}
           />
-          <Tooltip content={canUpload ? "Attach images" : "Update office mobd to attach images"} side="top">
-            <span>
-              <Button variant="ghost" size="icon-sm" aria-label="Attach images" disabled={!canUpload || attachments.length >= MAX_ATTACHMENTS} onClick={() => file.current?.click()}>
-                <Paperclip />
-              </Button>
-            </span>
-          </Tooltip>
           {runners.length > 1 && !chat.sessionId && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="sm" className="gap-1 px-2 text-muted-foreground" aria-label="Agent">
-                  <Bot className="size-3.5" />
+                <Button variant="ghost" size="sm" className="gap-1.5 px-2 text-muted-foreground" aria-label="Agent">
+                  <AgentAvatar runner={runner?.name} size="sm" />
                   {runner?.label ?? "Agent"}
                   <ChevronDown className="size-3 opacity-60" />
                 </Button>
@@ -379,7 +376,7 @@ export function Composer({ machineId, machineName, health }: { machineId: string
           )}
           {chat.sessionId && runner && (health?.runners?.length ?? 0) > 1 && (
             <Tooltip content="A conversation keeps its agent. Start a new chat to switch." side="top">
-              <span className="flex h-7 items-center gap-1 px-2 text-xs text-muted-foreground"><Bot className="size-3.5" />{runner.label}</span>
+              <span className="flex h-7 items-center gap-1.5 px-2 text-xs text-muted-foreground"><AgentAvatar runner={runner.name} size="sm" />{runner.label}</span>
             </Tooltip>
           )}
           {canOptions && (
@@ -392,6 +389,28 @@ export function Composer({ machineId, machineName, health }: { machineId: string
             </>
           )}
           <div className="flex-1" />
+          <Tooltip content={canUpload ? "Attach images" : "Update mobd on this computer to attach images"} side="top">
+            <span>
+              <Button variant="ghost" size="icon-sm" aria-label="Attach images" disabled={!canUpload || attachments.length >= MAX_ATTACHMENTS} onClick={() => file.current?.click()}>
+                <Paperclip />
+              </Button>
+            </span>
+          </Tooltip>
+          {chat.collab && (
+            <IconButton label="Mention an agent" shortcut="@" side="top" onClick={() => {
+              const el = input.current;
+              const at = el?.selectionStart ?? text.length;
+              const before = text.slice(0, at);
+              const insert = before && !/\s$/.test(before) ? " @" : "@";
+              setText(before + insert + text.slice(at));
+              requestAnimationFrame(() => {
+                el?.focus();
+                el?.setSelectionRange(at + insert.length, at + insert.length);
+              });
+            }}>
+              <AtSign />
+            </IconButton>
+          )}
           {canSteer && (
             <Tooltip content="Send to the running turn" side="top">
               <Button size="icon" variant="secondary" className="mr-1 size-8 rounded-full" aria-label="Send to running turn" disabled={!text.trim()} onClick={() => void send()}>
@@ -418,9 +437,6 @@ export function Composer({ machineId, machineName, health }: { machineId: string
           )}
         </div>
       </div>
-      <p className="mt-1.5 text-center text-[11px] text-muted-foreground/70">
-        ↵ send · ⇧↵ new line · the agent controls the office computer
-      </p>
     </div>
   );
 }

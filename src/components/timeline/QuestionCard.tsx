@@ -1,4 +1,5 @@
-import { Check, CircleHelp, Clock, ShieldAlert, X } from "lucide-react";
+import { CircleHelp, ShieldAlert } from "lucide-react";
+import { WaitingIcon } from "@/components/StatusIcon";
 import { useState, type ReactNode } from "react";
 import type { Question } from "@/api/types";
 import { Button } from "@/components/ui/button";
@@ -16,7 +17,7 @@ function Settled({ q, className }: { q: Question; className?: string }) {
   } else if (q.status === "answered") {
     line = `You answered: ${q.answer}`;
   } else if (q.status === "expired") {
-    line = approval ? "No answer in time — treated as denied" : "No answer in time";
+    line = approval ? "No answer in time · denied" : "No answer in time";
   } else {
     line = "Cancelled";
   }
@@ -41,16 +42,19 @@ export type Reply = { answer?: string; approved?: boolean };
  * A decision the agent is waiting for, answered from the timeline, or from Needs you with onAnswer
  * (any computer).
  */
-export function QuestionCard({ q, onAnswer, className, header }: {
+export function QuestionCard({ q, onAnswer, className, header, onScreen }: {
   q: Question;
   onAnswer?: (q: Question, reply: Reply) => Promise<boolean>;
   className?: string;
   /** Replaces the kind line, e.g. which conversation and computer asks. */
   header?: ReactNode;
+  /** Shows the other computer's screen (approvals about what is on it). */
+  onScreen?: () => void;
 }) {
   const chat = useChat();
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
+  const [replying, setReplying] = useState(false);
   if (q.status !== "pending") return <Settled q={q} className={className} />;
 
   const send = async (reply: Reply) => {
@@ -63,45 +67,37 @@ export function QuestionCard({ q, onAnswer, className, header }: {
   const freeText = q.allowText || options.length === 0;
 
   return (
-    <div className={cn("ml-9 rounded-xl border border-warning/40 bg-warning/5 p-3.5", className)} role="group" aria-label="The agent is waiting for you">
-      <div className="flex items-start gap-2.5">
-        {approval ? <ShieldAlert className="mt-0.5 size-4 shrink-0 text-warning" /> : <CircleHelp className="mt-0.5 size-4 shrink-0 text-warning" />}
-        <div className="min-w-0 flex-1">
-          {header ?? (
-            <p className="text-[11px] font-medium uppercase tracking-wide text-warning">
-              {approval ? "Approval needed" : "The agent asks"}
-            </p>
-          )}
-          <p className="mt-0.5 text-[14px] font-medium leading-snug">{q.text}</p>
-          {q.details && <p className="mt-1 whitespace-pre-wrap text-[13px] text-muted-foreground">{q.details}</p>}
-        </div>
-        <span className="flex shrink-0 items-center gap-1 text-[11px] text-muted-foreground">
-          <Clock className="size-3" /> waiting
-        </span>
-      </div>
+    <div className={cn("ml-9 rounded-xl border border-warning/45 bg-warning/[0.06] px-4 py-3", className)} role="group" aria-label="The agent is waiting for you">
+      {header ?? (
+        <p className="flex items-center gap-1.5 text-xs font-semibold text-warning">
+          <WaitingIcon className="size-3" /> {approval ? "Approval needed" : "Question"}
+        </p>
+      )}
+      <p className="mt-1 text-[14px] font-semibold leading-snug">{q.text}</p>
+      {q.details && <p className="mt-0.5 whitespace-pre-wrap text-[13px] text-muted-foreground">{q.details}</p>}
 
       {approval ? (
-        <div className="mt-3 grid gap-2 pl-6.5">
-          <Input value={text} onChange={(e) => setText(e.target.value)} placeholder="Optional note for the agent" disabled={sending} />
-          <div className="flex gap-2">
-            <Button disabled={sending} onClick={() => void send({ approved: true, answer: text.trim() || undefined })}>
-              <Check /> Approve
-            </Button>
-            <Button variant="secondary" disabled={sending} className="text-danger hover:text-danger"
-              onClick={() => void send({ approved: false, answer: text.trim() || undefined })}>
-              <X /> Deny
-            </Button>
+        <div className="mt-3 grid gap-2">
+          <div className="flex flex-wrap gap-2">
+            <Button size="sm" disabled={sending} onClick={() => void send({ approved: true, answer: text.trim() || undefined })}>Approve</Button>
+            <Button size="sm" variant="secondary" disabled={sending} onClick={() => void send({ approved: false, answer: text.trim() || undefined })}>Deny</Button>
+            {!replying && <Button size="sm" variant="ghost" disabled={sending} onClick={() => setReplying(true)}>Reply…</Button>}
+            {onScreen && <Button size="sm" variant="ghost" onClick={onScreen}>Look at the screen</Button>}
           </div>
+          {replying && (
+            <Input autoFocus value={text} onChange={(e) => setText(e.target.value)} placeholder="Note for the agent, sent with Approve or Deny" disabled={sending} />
+          )}
         </div>
       ) : (
-        <div className="mt-3 grid gap-2 pl-6.5">
+        <div className="mt-3 grid gap-2">
           {options.length > 0 && (
             <div className="flex flex-wrap gap-2">
-              {options.map((o) => (
-                <Button key={o} variant="secondary" disabled={sending} onClick={() => void send({ answer: o })}>
+              {options.map((o, i) => (
+                <Button key={o} size="sm" variant={i === 0 ? "default" : "secondary"} disabled={sending} onClick={() => void send({ answer: o })}>
                   {o}
                 </Button>
               ))}
+              {onScreen && <Button size="sm" variant="ghost" onClick={onScreen}>Look at the screen</Button>}
             </div>
           )}
           {freeText && (
@@ -114,7 +110,7 @@ export function QuestionCard({ q, onAnswer, className, header }: {
             >
               <Input autoFocus={options.length === 0} value={text} onChange={(e) => setText(e.target.value)}
                 placeholder={options.length ? "Or type another answer" : "Type your answer"} disabled={sending} />
-              <Button type="submit" disabled={sending || !text.trim()}>Send</Button>
+              <Button type="submit" size="sm" className="h-9" disabled={sending || !text.trim()}>Send</Button>
             </form>
           )}
         </div>
