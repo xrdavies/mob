@@ -124,6 +124,12 @@ there (mobd [docs/mob-desktop-local-mobd.md](https://github.com/xrdavies/mobd/bl
 - **Copy rule: show state, don't explain it.** A hint stays only if it shows state, prevents a mistake, or says
   how to fix something.
 
+### D10. Later, not now
+
+- An optional "All agents" board (Solution B) once people run many agents at once.
+- Applying the language to the iPhone and Android apps.
+- No Brand section in Appearance: the app icon follows the theme; Screen Buddy in empty screens is not a setting.
+
 ### D11. No new mobd fields for live status in the sidebar
 
 - **Choice:** running conversations show "Working" in the sidebar; the current step appears in the open
@@ -134,12 +140,6 @@ there (mobd [docs/mob-desktop-local-mobd.md](https://github.com/xrdavies/mobd/bl
 
 - **Choice:** config changes, restart and upgrade of any computer are done by the user in Settings, through mobd's
   remote maintenance. Agents get no tools for it (mobd remote-maintenance D2).
-
-### D10. Later, not now
-
-- An optional "All agents" board (Solution B) once people run many agents at once.
-- Applying the language to the iPhone and Android apps.
-- No Brand section in Appearance: the app icon follows the theme; Screen Buddy in empty screens is not a setting.
 
 ## Part 3: Design
 
