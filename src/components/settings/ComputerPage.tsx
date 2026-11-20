@@ -28,6 +28,9 @@ import { installLocal, localControl, localLatest, localLogs, localService, type 
 import { log } from "@/store/log";
 import { ConfirmButton, Dot, errorText, Group, Page, Row, Segmented } from "./ui";
 
+/** Grants whose prompt macOS shows once; after that only System Settings turns them on. */
+const PANE_GRANTS = new Set(["screenRecording", "accessibility"]);
+
 interface Grant { name: string; label: string; state: string; required: boolean; detail?: string; settings?: string }
 interface Client { id: string; name: string; createdAt: string; lastSeenAt?: string; revokedAt?: string }
 
@@ -260,14 +263,30 @@ function DevicesTab({ machine }: { machine: Machine }) {
   const refresh = useMemo(() => () => void qc.invalidateQueries({ queryKey: ["local-clients"] }), [qc]);
   const clients = (data?.clients ?? []).filter((c) => !c.revokedAt);
   const perms = useQuery({ queryKey: ["local-permissions"], queryFn: () => localControl<{ permissions: Grant[] }>("GET", "/permissions"), refetchInterval: 5000 });
+  const [restarting, setRestarting] = useState(false);
   const ask = async (g: Grant) => {
+    let asked = true;
     try {
       await localControl("POST", `/permissions/${encodeURIComponent(g.name)}`);
     } catch {
-      // No prompt (asked before): the pane where it is turned on.
-      if (g.settings) await invoke("local_open_settings", { url: g.settings });
+      asked = false;
+    }
+    // macOS shows the Screen Recording and Accessibility prompts only the first time and then
+    // answers silently, so their pane opens too; elsewhere only when there was no prompt.
+    if (g.settings && (!asked || PANE_GRANTS.has(g.name))) {
+      await invoke("local_open_settings", { url: g.settings }).catch((err) => log(`opening System Settings failed: ${errorText(err)}`, "error"));
     }
     void perms.refetch();
+  };
+  // A grant this mobd only sees after a restart.
+  const restart = () => {
+    setRestarting(true);
+    localService("restart").catch((err) => log(`restarting mobd failed: ${errorText(err)}`, "error")).finally(() => {
+      setRestarting(false);
+      void perms.refetch();
+      void qc.invalidateQueries({ queryKey: ["local-status"] });
+      void qc.invalidateQueries({ queryKey: ["health", baseUrl(machine)] });
+    });
   };
   return (
     <div className="grid content-start gap-5">
@@ -290,6 +309,9 @@ function DevicesTab({ machine }: { machine: Machine }) {
             <Row key={g.name} label={<span className="flex items-center gap-2"><Dot tone={g.state === "granted" ? "ok" : g.state === "restart" ? "warn" : "bad"} />{g.label}</span>}
               detail={g.state === "missing" ? g.detail : g.state === "restart" ? "Applies after mobd restarts" : undefined}>
               {g.state === "missing" && <Button size="sm" variant="secondary" onClick={() => void ask(g)}>Allow…</Button>}
+              {g.state === "restart" && (
+                <Button size="sm" variant="secondary" disabled={restarting} onClick={restart}>{restarting && <Spinner />} Restart mobd</Button>
+              )}
             </Row>
           ))}
         </Group>
