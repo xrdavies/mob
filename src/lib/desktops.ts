@@ -11,8 +11,8 @@ const LEVELS: Level[] = ["ok", "low", "critical"];
 const QUEUE_REASONS: Record<QueueReason, string> = {
   slots: "Waiting for a free slot",
   desktops: "Waiting: the desktop limit is reached",
-  memory: "Waiting: the office computer is low on memory",
-  disk: "Waiting: the office computer is low on disk space",
+  memory: "Waiting: the computer is low on memory",
+  disk: "Waiting: the computer is low on disk space",
   desktopStarting: "Starting the desktop",
 };
 
@@ -117,7 +117,7 @@ export function bannerState(desktops: Desktops | undefined): Banner | null {
   const low = [memory !== "ok" && "memory", disk !== "ok" && "disk space"].filter(Boolean).join(" and ");
   if (!low) return null;
   const critical = [memory === "critical" && "memory", disk === "critical" && "disk space"].filter(Boolean);
-  let message = `The office computer is low on ${low}. Close desktops or delete conversations you no longer need.`;
+  let message = `The computer is low on ${low}. Close desktops or delete conversations you no longer need.`;
   if (critical.length) message += ` New conversations wait until ${critical.join(" and ")} ${critical.length > 1 ? "are" : "is"} freed.`;
   return { key: `${memory}/${disk}`, critical: critical.length > 0, message };
 }

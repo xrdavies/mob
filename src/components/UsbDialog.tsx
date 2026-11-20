@@ -1,4 +1,4 @@
-// USB devices: share one plugged into this computer with the office computer, see and stop shares.
+// USB devices: share one plugged into this computer with the computer, see and stop shares.
 // mobd docs/usb-redirection.md. A share outlives this dialog and chat changes; quitting Mob ends it.
 import { useEffect, useState } from "react";
 import { Check, ChevronRight, CircleCheck, Copy, RefreshCw, TriangleAlert, Usb, X } from "lucide-react";
@@ -21,7 +21,7 @@ import { BusyError, useUsb, type Share } from "@/store/usb";
 
 const message = (e: unknown) => String(e instanceof Error ? e.message : e);
 
-/** Why the office computer can't use shared devices, with the command that fixes it to copy. */
+/** Why the computer can't use shared devices, with the command that fixes it to copy. */
 function NotReady({ name, detail }: { name: string; detail?: string }) {
   const { text, command } = setupCommand(detail);
   const [copied, setCopied] = useState(false);
@@ -245,7 +245,7 @@ function ShareRow({ share: s }: { share: Share }) {
       {busy && (
         <div className="mt-2 flex items-start gap-2 text-xs">
           <TriangleAlert className="mt-px size-3.5 shrink-0 text-warning" />
-          <p className="flex-1">{busy}. Unmount it on the office computer, or detach it anyway: writes not yet saved there can be lost.</p>
+          <p className="flex-1">{busy}. Unmount it on the computer, or detach it anyway: writes not yet saved there can be lost.</p>
           <Button variant="danger" size="sm" onClick={() => void release(true)}>Detach anyway</Button>
         </div>
       )}

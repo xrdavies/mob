@@ -137,7 +137,7 @@ test("a new machine is named after its address until mobd names it", async () =>
   assert.equal(nameFromOrigin("http://studio.local:8080"), "studio");
   assert.equal(nameFromOrigin("http://192.168.1.20:8080"), "192.168.1.20");
   assert.equal(nameFromOrigin("http://[fd7a:115c::1]:8080"), "fd7a:115c::1");
-  assert.equal(nameFromOrigin("not a url"), "Office computer");
+  assert.equal(nameFromOrigin("not a url"), "Computer");
 });
 
 test("pairing returns the computer's name when mobd sends it", async () => {

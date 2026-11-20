@@ -76,7 +76,7 @@ function Snapshot({ base, sessionId, width, onRatio, onError }: {
     <>
       <img
         src={image.src}
-        alt="Office desktop snapshot"
+        alt="Screen snapshot"
         className={cn("absolute inset-0 size-full object-contain", state === "error" && "invisible")}
         onLoad={(e) => {
           setUndecodable(undefined);
@@ -152,7 +152,7 @@ function SoundButton({ dark }: { dark: boolean }) {
   const blocked = s.sound === "unavailable" || s.sound === "error";
   const tip = blocked ? s.soundDetail
     : s.status !== "connected" ? "Sound plays once the live view is connected"
-    : on ? "Turn off the office computer's sound" : s.soundDetail || "Hear the office computer";
+    : on ? "Turn sound off" : s.soundDetail || "Turn sound on";
   return (
     <Tooltip content={tip}>
       <span>
@@ -384,11 +384,11 @@ export function ScreenView({ machine, health }: { machine: Machine; health?: Hea
         </span>
       )}
       {control && (
-        <div className="absolute inset-x-0 top-0 flex items-center gap-1.5 bg-accent py-1 pl-2.5 pr-1.5 text-[11.5px] font-medium text-white">
+        <div className="absolute inset-x-0 top-0 flex items-center gap-1.5 bg-accent py-1 pl-2.5 pr-1.5 text-[11.5px] font-medium text-accent-foreground">
           <Hand className="size-3.5" /> You're in control
           <button type="button" onClick={() => live.setControl(false)}
-            className="ml-auto flex items-center gap-1.5 rounded-md bg-white/20 px-2 py-0.5 text-[11px] hover:bg-white/30">
-            Release <span className="text-[10px] text-white/75">Esc</span>
+            className="ml-auto flex items-center gap-1.5 rounded-md bg-accent-foreground/15 px-2 py-0.5 text-[11px] hover:bg-accent-foreground/25">
+            Release <span className="text-[10px] opacity-75">Esc</span>
           </button>
         </div>
       )}

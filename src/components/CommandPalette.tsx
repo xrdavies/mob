@@ -8,7 +8,7 @@ import { WaitingIcon, StatusIcon } from "@/components/StatusIcon";
 import { useAllSessions } from "@/hooks/useComputers";
 import { useHealth } from "@/hooks/useMachine";
 import { askAgent, newChatOn, openSession } from "@/hooks/navigate";
-import { stream } from "@/lib/stream";
+import { stream, useStream } from "@/lib/stream";
 import { isLocal } from "@/lib/machines";
 import { MOD } from "@/lib/platform";
 import { cn } from "@/lib/utils";
@@ -42,6 +42,8 @@ export function CommandPalette({ onConnect }: { onConnect: () => void }) {
   const active = machines.find((m) => m.id === activeMachineId);
   // This computer has no live view or USB: the user is sitting at it.
   const remote = !!active && !isLocal(active) && !needsPairing(active);
+  const streamState = useStream();
+  const live = streamState.status === "connected" || streamState.status === "connecting";
 
   useEffect(() => {
     if (!paletteOpen) {
@@ -133,8 +135,8 @@ export function CommandPalette({ onConnect }: { onConnect: () => void }) {
               {paired.filter((m) => m.id !== activeMachineId).map((m) => (
                 <CommandItem key={m.id} value={`new chat on ${m.name}`} onSelect={run(() => newChatOn(m.id))}><SquarePen /> New chat on {m.name}</CommandItem>
               ))}
-              {remote && <CommandItem onSelect={run(onConnect)}><Plug /> Watch the screen live</CommandItem>}
-              {remote && <CommandItem onSelect={run(() => stream.disconnect())}><Plug /> Stop watching the screen</CommandItem>}
+              {remote && !live && <CommandItem onSelect={run(onConnect)}><Plug /> Wake the screen</CommandItem>}
+              {remote && live && <CommandItem onSelect={run(() => stream.disconnect())}><Plug /> Put the screen to sleep</CommandItem>}
               {remote && <CommandItem onSelect={run(() => set({ filesOpen: true }))}><Folder /> Files</CommandItem>}
               {remote && <CommandItem onSelect={run(() => set({ usbOpen: true }))}><Usb /> Share a USB device</CommandItem>}
               <CommandItem onSelect={run(() => set({ sidebarOpen: !sidebarOpen }))}><PanelLeft /> {sidebarOpen ? "Hide sidebar" : "Show sidebar"}</CommandItem>

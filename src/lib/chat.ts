@@ -408,7 +408,7 @@ export class Chat {
           mentions: options.mentions?.length ? options.mentions : undefined,
         }),
       });
-      if (!t.sessionId) throw new Error("Update office mobd to support chat sessions.");
+      if (!t.sessionId) throw new Error("Update mobd on this computer to support conversations.");
       this.log(`created turn ${t.id} in session ${t.sessionId}`);
       if (revision !== this.revision) return false;
       this.sessionId = t.sessionId;
@@ -631,7 +631,7 @@ export class Chat {
   private async request<T>(url: string, init?: RequestInit): Promise<T> {
     const res = await authFetch(this.url, url, init);
     if (res.status === 404 && url.endsWith("/sessions")) {
-      throw new Error("Update office mobd to support chat sessions.");
+      throw new Error("Update mobd on this computer to support conversations.");
     }
     if (res.status === 204) return undefined as T;
     const data = await res.json();
@@ -703,7 +703,7 @@ export class Chat {
       // Nothing to show: say why in place of the conversation, with Retry. "Syncing…" must not stay.
       this.log(`loading the conversation failed: ${String(err)}`);
       this.loadError = unreachable(err) ?
-        (this.history ? "The office computer is unreachable, and this conversation isn't saved on this device." : "The office computer is unreachable.") :
+        (this.history ? "The computer is unreachable, and this conversation isn't saved on this device." : "The computer is unreachable.") :
         err instanceof Error ? err.message : String(err);
       this.sync = this.history && unreachable(err) ? "offline" : "";
       this.changed();

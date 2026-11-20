@@ -32,7 +32,7 @@ export function UpdateNotice() {
       <Dialog open={confirm} onOpenChange={setConfirm}>
         <DialogContent className="max-w-md">
           <DialogTitle>Install Mob {state.update?.version}?</DialogTitle>
-          <DialogDescription>Mob will restart after installation. Finish or copy any unsent text and attachments before continuing. Your saved conversations stay on the office computer.</DialogDescription>
+          <DialogDescription>Mob will restart after installation. Finish or copy any unsent text and attachments before continuing. Conversations stay on your computers.</DialogDescription>
           <div className="flex justify-end gap-2">
             <Button variant="secondary" onClick={() => setConfirm(false)}>Later</Button>
             <Button disabled={busy || state.phase !== "available"} onClick={() => { setConfirm(false); void state.install(); }}>Install and restart</Button>

@@ -297,13 +297,13 @@ function ComputerGroup({ machine, onHandleAction }: { machine: Machine; onHandle
               <ComputerIcon machine={machine} className="size-3.5 shrink-0 text-muted-foreground" />
               <span className={cn("min-w-0 truncate", offline && "text-muted-foreground")}>{machine.name}</span>
               <span className={cn("size-1.5 shrink-0 rounded-full", dot)} title={unpaired ? "Needs pairing" : offline ? "Offline" : checksBad ? "Needs attention" : "Online"} />
-              <span className="ml-auto flex shrink-0 items-center gap-1 pl-1 text-[11px] font-normal text-muted-foreground group-hover/computer:hidden">
+              <span className="ml-auto flex shrink-0 items-center gap-1 pl-1 text-[11px] font-normal text-muted-foreground group-focus-within/computer:hidden group-hover/computer:hidden">
                 {unpaired ? "Needs pairing" : offline ? "Offline" : waiting > 0 && <><span className="tabular-nums text-warning">{waiting}</span><WaitingIcon className="size-3" /></>}
               </span>
             </button>
             <RouteChip machine={machine} />
             {!unpaired && (
-              <IconButton label={`New chat on ${machine.name}`} className="hidden size-6 group-hover/computer:inline-flex" onClick={() => newChatOn(machine.id)}>
+              <IconButton label={`New chat on ${machine.name}`} className="hidden size-6 focus-visible:inline-flex group-focus-within/computer:inline-flex group-hover/computer:inline-flex" onClick={() => newChatOn(machine.id)}>
                 <Plus />
               </IconButton>
             )}
@@ -410,7 +410,7 @@ function NeedsYouRow() {
       <WaitingIcon className={cn(!waiting.length && "opacity-40 grayscale")} />
       Needs you
       {waiting.length > 0 && (
-        <span className="ml-auto rounded-full bg-warning px-1.5 text-[11px] font-semibold tabular-nums leading-[18px] text-white">{waiting.length}</span>
+        <span className="ml-auto rounded-full bg-warning px-1.5 text-[11px] font-semibold tabular-nums leading-[18px] text-background">{waiting.length}</span>
       )}
     </button>
   );

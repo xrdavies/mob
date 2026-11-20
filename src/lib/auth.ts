@@ -3,7 +3,7 @@
 
 export class UnauthorizedError extends Error {
   constructor() {
-    super("This device needs to be paired again. Run mobd link on the office computer and paste the new link in Settings.");
+    super("This device needs to be paired again. Run mobd link on the computer and paste the new link in Settings.");
     this.name = "UnauthorizedError";
   }
 }

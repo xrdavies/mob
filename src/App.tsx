@@ -109,7 +109,7 @@ function NoMachine() {
           </>
         ) : (
           <>
-            <p className="mt-1 text-[13px] text-muted-foreground">Add the office Mac or Linux machine your agents work on.</p>
+            <p className="mt-1 text-[13px] text-muted-foreground">Add a Mac or Linux computer running mobd.</p>
             <Button className="mt-5" disabled={isLoading} onClick={() => useApp.getState().openAdd(undefined, "link")}>Add a computer</Button>
           </>
         )}
@@ -129,8 +129,7 @@ function NeedsPairing({ machine }: { machine: Machine }) {
           <img src="/logo.svg" alt="Mob Screen Buddy" className="mx-auto size-20" />
           <h2 className="mt-3 text-base font-semibold">{machine.name} needs pairing</h2>
           <p className="mt-1 text-[13px] text-muted-foreground">
-            This device has no valid credential for the office computer. Run <code className="font-mono">mobd link</code> there and paste
-            the new link. Your conversations stay on the office computer.
+            Run <code className="font-mono">mobd link</code> on {machine.name} and paste the new link. Its conversations are kept.
           </p>
           <Button className="mt-4" onClick={() => useApp.getState().openAdd(machine.id)}>Pair again</Button>
         </div>

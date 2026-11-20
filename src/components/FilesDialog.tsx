@@ -1,4 +1,4 @@
-// Files: a two-pane commander. Left, mobd's shared folder on the office computer (never above
+// Files: a two-pane commander. Left, mobd's shared folder on the computer (never above
 // it); right, this computer from Downloads. Upload moves right to left, download left to right.
 // See docs/file-commander-design.md.
 import { useEffect, useMemo, useState, type ReactNode } from "react";
@@ -113,7 +113,7 @@ export function FilesDialog({ machine, health, open, onOpenChange }: { machine: 
             />
             {/* A fixed height: the strip below comes and goes, and must not move these under the cursor. */}
             <div className="flex flex-col items-center gap-2 pt-48">
-              <Button variant="secondary" size="sm" disabled={!canUpload} onClick={() => void upload()} title="Upload the selected item to the office computer"><ArrowLeft /> Upload</Button>
+              <Button variant="secondary" size="sm" disabled={!canUpload} onClick={() => void upload()} title="Upload the selected item to the computer"><ArrowLeft /> Upload</Button>
               <Button variant="secondary" size="sm" disabled={!remoteEntry || remoteEntry.dir || !localDir} onClick={() => download()} title="Download the selected file to this folder">Download <ArrowRight /></Button>
             </div>
             <Pane
@@ -161,7 +161,7 @@ export function FilesDialog({ machine, health, open, onOpenChange }: { machine: 
       {deleting && <Dialog open onOpenChange={o => !o && setDeleting(undefined)}>
         <DialogContent className="w-[min(420px,92vw)] p-5" showClose={false}>
           <DialogTitle>Delete {deleting.name}{deleting.dir ? " and everything in it" : ""}?</DialogTitle>
-          <DialogDescription className="mt-2">It is removed from the office computer and cannot be restored.</DialogDescription>
+          <DialogDescription className="mt-2">It is removed from the computer and cannot be restored.</DialogDescription>
           <div className="mt-5 flex justify-end gap-2">
             <Button variant="secondary" onClick={() => setDeleting(undefined)}>Cancel</Button>
             <Button variant="danger" onClick={() => { const e = deleting; setDeleting(undefined); void action(async () => { await deleteRemote(base, joinRemote(remoteDir, e.name)); setRemoteSel(undefined); await loadRemote(); }); }}>Delete</Button>

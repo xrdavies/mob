@@ -90,7 +90,7 @@ function LinkStep({ machine, onLink, onBack, checkClipboard }: {
     <div className="grid gap-5" onDragOver={(e) => e.preventDefault()} onDrop={onDrop}>
       <Header
         title={machine ? `Pair ${machine.name} again` : "Add a computer"}
-        description={machine ? "Or add another of its addresses, such as its Tailscale one." : "An office Mac or Linux machine running mobd."}
+        description={machine ? "Or add another of its addresses, such as its Tailscale one." : "A Mac or Linux computer running mobd."}
         onBack={onBack}
       />
       <ol className="grid gap-4">
@@ -130,7 +130,7 @@ function LinkStep({ machine, onLink, onBack, checkClipboard }: {
         {more && (
           <p className="text-[11.5px]">
             <code className="font-mono">mobd link</code> uses the remote address set up with <code className="font-mono">mobd remote</code>, else
-            the office network. <code className="font-mono">mobd link --lan</code> picks the office network, <code className="font-mono">--url ADDRESS</code> any other.
+            the local network. <code className="font-mono">mobd link --lan</code> picks the local network, <code className="font-mono">--url ADDRESS</code> any other.
           </p>
         )}
       </div>

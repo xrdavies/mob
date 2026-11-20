@@ -231,7 +231,7 @@ test("a POST completed after a machine switch cannot change the new conversation
 test("an old backend blocks sends with an upgrade message", async (t) => {
   const { chat, calls } = harness(t, () => ({ statusCode: 404, body: { error: "not found" } }));
   await chat.setMachine("office", "http://office");
-  assert.match(chat.error, /Update office mobd/);
+  assert.match(chat.error, /Update mobd on this computer/);
   assert.equal(await chat.submit("hello"), false);
   assert.equal(calls.some((c) => c.init?.method === "POST"), false);
 });

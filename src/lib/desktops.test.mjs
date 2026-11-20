@@ -126,8 +126,8 @@ test("desktopMark tells running from asleep", () => {
 test("queue reasons read as the spec says", () => {
   assert.equal(queueReasonText("slots"), "Waiting for a free slot");
   assert.equal(queueReasonText("desktops"), "Waiting: the desktop limit is reached");
-  assert.equal(queueReasonText("memory"), "Waiting: the office computer is low on memory");
-  assert.equal(queueReasonText("disk"), "Waiting: the office computer is low on disk space");
+  assert.equal(queueReasonText("memory"), "Waiting: the computer is low on memory");
+  assert.equal(queueReasonText("disk"), "Waiting: the computer is low on disk space");
   assert.equal(queueReasonText("desktopStarting"), "Starting the desktop");
   assert.equal(queueReasonText(undefined), "");
   assert.equal(queueReasonText("toString"), "");
@@ -137,10 +137,10 @@ test("bannerState follows the memory and disk levels", () => {
   assert.equal(bannerState(undefined), null);
   assert.equal(bannerState({ desktops: [], memory: { level: "ok" }, disk: { level: "ok" } }), null);
   const low = bannerState({ desktops: [], memory: { level: "low" } });
-  assert.equal(low.message, "The office computer is low on memory. Close desktops or delete conversations you no longer need.");
+  assert.equal(low.message, "The computer is low on memory. Close desktops or delete conversations you no longer need.");
   assert.equal(low.critical, false);
   const disk = bannerState({ desktops: [], disk: { level: "critical" } });
-  assert.equal(disk.message, "The office computer is low on disk space. Close desktops or delete conversations you no longer need. New conversations wait until disk space is freed.");
+  assert.equal(disk.message, "The computer is low on disk space. Close desktops or delete conversations you no longer need. New conversations wait until disk space is freed.");
   assert.equal(disk.critical, true);
   const both = bannerState({ desktops: [], memory: { level: "critical" }, disk: { level: "low" } });
   assert.match(both.message, /low on memory and disk space\./);

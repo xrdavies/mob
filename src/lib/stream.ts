@@ -12,7 +12,7 @@ import { streamWsUrl, WsPlayer, wsDecoder } from "./wsVideo.ts";
 // `input` (reliable) and `pointer` (unreliable, latest wins) channels for control mode. Where UDP
 // cannot pass, the same session continues over the WebSocket fallback (wsVideo.ts).
 
-export const UPDATE_MOBD = "Update mobd on the office computer to use the live desktop";
+export const UPDATE_MOBD = "Update mobd on that computer to see its screen";
 
 export type Quality = "auto" | "high" | "low";
 
@@ -119,7 +119,7 @@ export function parseControl(data: unknown): ControlMessage | null {
     case "stats":
       return { t: "stats", kbps: num("kbps"), width: num("width"), height: num("height"), fps: num("fps"), loss: num("loss"), rttMs: num("rttMs") };
     case "ended":
-      return { t: "ended", message: str("message") || "The office computer ended the live view" };
+      return { t: "ended", message: str("message") || "The computer ended the live view" };
     case "error":
       return { t: "error", about: str("about"), message: str("message") };
     case "cursor":
@@ -245,7 +245,7 @@ export interface StreamState {
   transport: Transport | null;
   /** Where it is shown: a <video> for WebRTC and the WebSocket through MSE, a <canvas> for WebCodecs. */
   element: "video" | "canvas" | null;
-  /** Mouse and keyboard on the picture reach the office computer only while true. */
+  /** Mouse and keyboard on the picture reach the computer only while true. */
   control: boolean;
   /** mobd's encoder target. */
   kbps: number;
@@ -401,7 +401,7 @@ class StreamController {
       this.teardown();
       this.update({ ...IDLE, status: "error", detail });
     };
-    timer = setTimeout(() => fail("The live view did not start. Is the office computer reachable from here?"), CONNECT_TIMEOUT);
+    timer = setTimeout(() => fail("The live view did not start. Is the computer reachable from here?"), CONNECT_TIMEOUT);
     // mobd decides: it sends video only on the transport that connected first there, so the first
     // frame (not our side of ICE connecting) says which one carries the session; the other is closed.
     const choose = (t: Transport) => {
@@ -464,7 +464,7 @@ class StreamController {
           if (transport === "WebRTC") fail("The live view connection was lost");
           else if (player) this.dropWebRTC(); // the WebSocket is already trying
           else if (startWs) startWs(false); // no UDP path: don't wait out the head start
-          else fail("The office computer could not be reached over WebRTC");
+          else fail("The computer could not be reached over WebRTC");
           break;
         case "closed":
           if (transport === "WebRTC") {
@@ -537,7 +537,7 @@ class StreamController {
         this.update({ sound: this.wantSound ? "starting" : "off", soundDetail: "" });
       } else if (asked) {
         this.wantSound = false;
-        this.update({ sound: "unavailable", soundDetail: answer.audio?.reason || "This office computer cannot share its sound." });
+        this.update({ sound: "unavailable", soundDetail: answer.audio?.reason || "That computer cannot share its sound." });
       }
       console.info(`live: answered in ${ms()} ms, ${answer.width}×${answer.height}`);
       if (answer.wsTicket && decoder) {
@@ -550,7 +550,7 @@ class StreamController {
           if (!race) this.dropWebRTC();
           // The WebSocket gets its own time: on a slow path it can open late in the first window.
           clearTimeout(timer);
-          timer = setTimeout(() => fail("The live view did not start. Is the office computer reachable from here?"), CONNECT_TIMEOUT);
+          timer = setTimeout(() => fail("The live view did not start. Is the computer reachable from here?"), CONNECT_TIMEOUT);
           const ws: WsPlayer = new WsPlayer(url, { canvas, video }, {
             control: (data) => transport === "WebSocket" && control(data),
             frame: (width, height) => {
@@ -563,7 +563,7 @@ class StreamController {
                 if (player === ws) player = null;
                 if (this.ws === ws) this.ws = null;
                 // Still racing: WebRTC may yet connect.
-                if (!this.pc) fail("The office computer could not be reached over WebRTC or the WebSocket fallback");
+                if (!this.pc) fail("The computer could not be reached over WebRTC or the WebSocket fallback");
               } else if (code === 1000) {
                 this.teardown();
                 this.update({ ...IDLE, detail: reason || "Disconnected" });
@@ -598,7 +598,7 @@ class StreamController {
       }
       if (!answer.answer) {
         if (startWs) startWs(false);
-        else throw new Error("mobd answered without WebRTC; update mobd on the office computer");
+        else throw new Error("mobd answered without WebRTC; update mobd on that computer");
         return;
       }
       await pc?.setRemoteDescription({ type: "answer", sdp: answer.answer });
@@ -651,7 +651,7 @@ class StreamController {
           video.muted = true;
           void video.play().catch(() => {});
           this.setSound(false);
-          this.update({ soundDetail: "Click the speaker to hear the office computer again." });
+          this.update({ soundDetail: "Click the speaker to hear it again." });
         });
       }
     } else if (state === "off") {

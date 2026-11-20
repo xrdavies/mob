@@ -41,7 +41,7 @@ export function deviceDetail(d: Pick<LocalDevice, "manufacturer" | "vendorId" | 
 export function stateLabel(state: UsbState, localBusId?: string): string {
   switch (state) {
     case "connecting": return "Connecting…";
-    case "connected": return localBusId ? `Shared · ${localBusId} on the office computer` : "Shared";
+    case "connected": return localBusId ? `Shared · ${localBusId} on the computer` : "Shared";
     case "disconnecting": return "Stopping…";
     case "disconnected": return "Stopped";
     case "failed": return "Failed";
@@ -54,7 +54,7 @@ export const active = (state: UsbState) => state === "connecting" || state === "
 export function shareBlocker(d: LocalDevice, importer?: UsbImporter): string {
   if (d.shared) return "Already shared";
   if (d.unavailable) return d.unavailable;
-  if (importer && !importer.ready) return "The office computer cannot import USB devices yet";
+  if (importer && !importer.ready) return "the computer cannot import USB devices yet";
   return "";
 }
 

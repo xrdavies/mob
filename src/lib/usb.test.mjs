@@ -6,7 +6,7 @@ test("device details and states read plainly", () => {
   assert.equal(ids(0x1209, 1), "1209:0001");
   assert.equal(deviceDetail({ manufacturer: "Raspberry Pi", vendorId: 0x2e8a, productId: 0x000c }), "Raspberry Pi · 2e8a:000c");
   assert.equal(deviceDetail({ manufacturer: null, vendorId: 1, productId: 2 }), "0001:0002");
-  assert.equal(stateLabel("connected", "3-1"), "Shared · 3-1 on the office computer");
+  assert.equal(stateLabel("connected", "3-1"), "Shared · 3-1 on the computer");
   assert.equal(stateLabel("connecting"), "Connecting…");
   assert.ok(active("connected") && active("disconnecting") && !active("failed"));
 });

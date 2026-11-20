@@ -99,7 +99,7 @@ export function HandleDialog({ session, onClose }: { session: Session | null; on
           </div>
 
           <p className={cn("mt-1.5 min-h-4 text-xs", problem || error ? "text-danger" : "text-muted-foreground")}>
-            {problem || error || "Lowercase letters, digits and -. Unique on this office computer."}
+            {problem || error || "Lowercase letters, digits and -. Unique on each computer."}
           </p>
 
           {!current && suggested && value !== suggested && (

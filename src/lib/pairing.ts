@@ -64,20 +64,20 @@ export async function pair(link: PairLink, name: string): Promise<Pairing> {
       cache: "no-store",
     });
   } catch (err) {
-    throw new Error(`Could not reach ${link.origin}. Check the network or VPN and that the office computer is awake. (${err instanceof Error ? err.message : String(err)})`);
+    throw new Error(`Could not reach ${link.origin}. Check the network or VPN and that the computer is awake. (${err instanceof Error ? err.message : String(err)})`);
   }
   const data = (await res.json().catch(() => ({}))) as Partial<Pairing> & { error?: string; code?: string; computerName?: unknown };
   // mobd answers 404 pairing_closed while no invitation is open (used, expired or closed).
-  if (res.status === 401 || data.code === "pairing_closed") throw new Error("This pairing link is invalid, expired or already used. Run mobd link on the office computer again.");
+  if (res.status === 401 || data.code === "pairing_closed") throw new Error("This pairing link is invalid, expired or already used. Run mobd link on that computer again.");
   if (res.status === 400) throw new Error(`mobd rejected the pairing request: ${data.error || "invalid request"}.`);
-  if (res.status === 503) throw new Error("The office computer could not save the pairing. Ask its administrator to check mobd's storage, then try again.");
-  if (res.status === 404 || res.status === 405) throw new Error("This mobd does not support pairing. Update mobd on the office computer.");
+  if (res.status === 503) throw new Error("The computer could not save the pairing. Ask its administrator to check mobd's storage, then try again.");
+  if (res.status === 404 || res.status === 405) throw new Error("This mobd does not support pairing. Update mobd on the computer.");
   if (!res.ok) throw new Error(`Pairing failed: ${data.error || `HTTP ${res.status}`}`);
   if (typeof data.token !== "string" || !data.token || typeof data.clientId !== "string" || typeof data.serverId !== "string") {
     throw new Error("Invalid pairing response from mobd.");
   }
   if (data.serverId !== link.serverId) {
-    throw new Error("The office computer answered with a different server ID than the link. Check the address and run mobd link again.");
+    throw new Error("The computer answered with a different server ID than the link. Check the address and run mobd link again.");
   }
   const computerName = typeof data.computerName === "string" ? data.computerName.trim().slice(0, 128) : "";
   return { serverId: data.serverId, clientId: data.clientId, token: data.token, ...(computerName ? { computerName } : {}) };
@@ -112,8 +112,8 @@ export function nameFromOrigin(origin: string): string {
   try {
     host = new URL(origin).hostname.replace(/^\[|\]$/g, "");
   } catch {
-    return "Office computer";
+    return "Computer";
   }
   if (/^[\d.]+$/.test(host) || host.includes(":")) return host;
-  return host.split(".")[0] || "Office computer";
+  return host.split(".")[0] || "Computer";
 }

@@ -1,6 +1,6 @@
 # Mob Desktop redesign
 
-Status: design settled 2026-11-20; not implemented yet. Mockup: [mockup.html](mockup.html) (open it in a browser;
+Status: design settled 2026-11-20; implemented 2026-11-21 (branch feat/desktop-redesign). Mockup: [mockup.html](mockup.html) (open it in a browser;
 the buttons along the top jump to each screen, everything in the window is clickable). Sample data only.
 
 This document has three parts: [the feature](#part-1-feature) (what and why), [the decisions](#part-2-decisions)
