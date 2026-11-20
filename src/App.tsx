@@ -15,16 +15,22 @@ import { AddComputerDialog } from "@/components/add/AddComputerDialog";
 import { useLocalStatus } from "@/components/local/LocalSetup";
 import { Sidebar } from "@/components/sidebar/Sidebar";
 import { Timeline } from "@/components/timeline/Timeline";
-import { TitleBar } from "@/components/TitleBar";
+import { Toolbar } from "@/components/Toolbar";
+import { flushAsk, newChatOn, openSession } from "@/hooks/navigate";
+import { NeedsYou } from "@/components/needs/NeedsYou";
+import { ComputerWatchers } from "@/hooks/useComputers";
+import { IconButton } from "@/components/ui/icon-button";
+import { PanelLeft } from "lucide-react";
+import { isMac, shortcut } from "@/lib/platform";
+import { isTauri } from "@/lib/tauri";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { chat, useChat } from "@/hooks/useChat";
-import { SyncStatus } from "@/components/timeline/SyncStatus";
 import { useHealth, useMachineEvents, useQueue } from "@/hooks/useMachine";
 import { useQuestionAlerts } from "@/hooks/useQuestionAlerts";
 import { RouteBanner } from "@/components/MachineRoute";
 import { baseUrl, needsPairing, useActiveMachine, useApp, type Machine } from "@/store/app";
-import { useComposer } from "@/store/composer";
 import { log } from "@/store/log";
 
 function useDarkMode(): boolean {
@@ -128,9 +134,21 @@ function NeedsPairing({ machine }: { machine: Machine }) {
   );
 }
 
+/** A screen without the conversation toolbar: a window-drag strip, and the sidebar button when it is hidden. */
+function Bare({ children }: { children?: React.ReactNode }) {
+  const { sidebarOpen, set } = useApp();
+  const strip = (
+    <div data-tauri-drag-region className={cn("flex h-12 shrink-0 items-center px-3", !sidebarOpen && isTauri && isMac && "pl-[78px]")}>
+      {!sidebarOpen && <IconButton label="Show sidebar" shortcut={shortcut("B")} onClick={() => set({ sidebarOpen: true })}><PanelLeft /></IconButton>}
+    </div>
+  );
+  if (!children) return strip;
+  return <div className="flex min-w-0 flex-1 flex-col bg-background">{strip}{children}</div>;
+}
+
 export default function App() {
   const machine = useActiveMachine();
-  const { sidebarOpen, previewOpen, filesOpen, usbOpen, savedSessions, rememberSession, set, togglePreview } = useApp();
+  const { sidebarOpen, previewOpen, filesOpen, usbOpen, savedSessions, rememberSession, set, togglePreview, view } = useApp();
   const chatState = useChat();
   const base = baseUrl(machine);
   const health = useHealth(machine);
@@ -148,6 +166,9 @@ export default function App() {
     log(`selected machine: ${machine.name}`, "info");
     void chat.setMachine(machine.id, base, useApp.getState().savedSessions[machine.id], machine.serverId ?? machine.id);
   }, [machine?.id, base, needsPairing(machine)]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // An ask from ⌘K for a computer that was not open goes out once its conversations are loaded.
+  useEffect(() => flushAsk(), [chatState.ready, chatState.machineId, chatState.sessionId]);
 
   // Back from offline once mobd answers again; returning to the app catches up with changes.
   useEffect(() => {
@@ -181,10 +202,9 @@ export default function App() {
       } else if (mod && e.key.toLowerCase() === "k") {
         e.preventDefault();
         set({ paletteOpen: !st.paletteOpen });
-      } else if (mod && e.key.toLowerCase() === "n" && chat.ready && !chat.submitting) {
+      } else if (mod && e.key.toLowerCase() === "n" && st.activeMachineId) {
         e.preventDefault();
-        chat.newChat();
-        useComposer.getState().focus();
+        newChatOn(st.activeMachineId);
       } else if (mod && e.key.toLowerCase() === "b") {
         e.preventDefault();
         if (e.shiftKey) st.togglePreview();
@@ -192,11 +212,11 @@ export default function App() {
       } else if (mod && e.key === ",") {
         e.preventDefault();
         st.openSettings();
-      } else if (mod && /^[1-9]$/.test(e.key)) {
+      } else if (mod && /^[1-9]$/.test(e.key) && !st.paletteOpen) {
         const s = chat.sessions[Number(e.key) - 1];
-        if (s) {
+        if (s && st.activeMachineId) {
           e.preventDefault();
-          void chat.open(s.id);
+          openSession(st.activeMachineId, s.id);
         }
       }
     };
@@ -208,29 +228,28 @@ export default function App() {
     <TooltipProvider delayDuration={400}>
       <div className="flex h-full flex-col">
         <UpdateNotice />
-        <TitleBar machine={machine} health={health.data} healthError={health.isError} queue={queue}
-          refetchHealth={() => void health.refetch()} dark={dark} />
         <div className="flex min-h-0 flex-1">
           {sidebarOpen && <Sidebar />}
-          {machine && needsPairing(machine) ? (
-            <NeedsPairing machine={machine} />
-          ) : machine ? (
+          {machine && needsPairing(machine) && view === "chat" ? (
+            <Bare><NeedsPairing machine={machine} /></Bare>
+          ) : machine || view === "needs" ? (
             <main className="flex min-w-0 flex-1 flex-col bg-background">
-              <div className="flex h-10 shrink-0 items-center border-b px-4">
-                <h1 className="min-w-0 truncate text-[13px] font-medium">
-                  {chatState.session?.title ?? (chatState.loading ? "Loading…" : "New chat")}
-                </h1>
-                <SyncStatus />
-              </div>
-              <RouteBanner machine={machine} />
-              <Timeline machineName={machine.name} />
-              <Composer machineId={machine.id} machineName={machine.name} health={health.data} />
+              {machine && view === "chat" ? (
+                <Toolbar machine={machine} health={health.data} healthError={health.isError} queue={queue} refetchHealth={() => void health.refetch()} />
+              ) : <Bare />}
+              {view === "needs" ? <NeedsYou /> : machine && (
+                <>
+                  <RouteBanner machine={machine} />
+                  <Timeline machineName={machine.name} />
+                  <Composer machineId={machine.id} machineName={machine.name} health={health.data} />
+                </>
+              )}
             </main>
           ) : (
-            <NoMachine />
+            <Bare><NoMachine /></Bare>
           )}
           {/* Closed means unmounted: no snapshots and no live view connection, as in the mobile apps. */}
-          {machine && previewOpen && (isLocal(machine)
+          {machine && previewOpen && view === "chat" && !needsPairing(machine) && (isLocal(machine)
             ? <ActivityPanel health={health.data} queue={queue} />
             : <PreviewPanel machine={machine} health={health.data} queue={queue} />)}
         </div>
@@ -239,6 +258,7 @@ export default function App() {
       <AddComputerDialog />
       {machine && !isLocal(machine) && <FilesDialog machine={machine} health={health.data} open={filesOpen} onOpenChange={(o) => set({ filesOpen: o })} />}
       {machine && !isLocal(machine) && <UsbDialog machine={machine} health={health.data} open={usbOpen} onOpenChange={(o) => set({ usbOpen: o })} />}
+      <ComputerWatchers />
       <CommandPalette onConnect={connectLive} />
       <Toaster theme={dark ? "dark" : "light"} position="bottom-center" />
     </TooltipProvider>

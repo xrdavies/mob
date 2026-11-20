@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { ArrowLeft, ArrowRight, ArrowUp, RefreshCw, X } from "lucide-react";
 import type { Health } from "@/api/types";
 import { supports } from "@/api/client";
-import { isTauri } from "@/components/TitleBar";
+import { isTauri } from "@/lib/tauri";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";

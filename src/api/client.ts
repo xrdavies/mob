@@ -1,6 +1,6 @@
 import { ApiError, authFetch } from "../lib/auth.ts";
 import { parseDesktops } from "../lib/desktops.ts";
-import type { Desktops, Health, MachineSettings, Queue, RunnerInfo, Session, SettingsView, Upload } from "./types.ts";
+import type { Desktops, Health, MachineSettings, Question, Queue, RunnerInfo, Session, SessionDetail, SettingsView, Upload } from "./types.ts";
 
 async function getJSON<T>(base: string, path: string, init?: RequestInit): Promise<T> {
   const res = await authFetch(base, `${base}${path}`, init);
@@ -27,6 +27,28 @@ export const fetchQueue = (base: string) => getJSON<Queue>(base, "/queue");
 export async function fetchArchived(base: string): Promise<Session[]> {
   return (await getJSON<{ sessions: Session[] }>(base, "/sessions?archived=true")).sessions;
 }
+
+/** A computer's conversations (not archived), for the sidebar of a computer that is not open. */
+export async function fetchSessions(base: string): Promise<Session[]> {
+  return (await getJSON<{ sessions: Session[] }>(base, "/sessions")).sessions ?? [];
+}
+
+export const fetchSessionDetail = (base: string, id: string) => getJSON<SessionDetail>(base, `/sessions/${encodeURIComponent(id)}`);
+
+/** Renames, pins or archives a conversation on a computer that is not open (the open one goes through Chat). */
+export const patchSessionAt = (base: string, id: string, patch: { title?: string; pinned?: boolean; archived?: boolean }) =>
+  getJSON<Session>(base, `/sessions/${encodeURIComponent(id)}`, {
+    method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(patch),
+  });
+
+export const deleteSessionAt = (base: string, id: string) =>
+  getJSON<unknown>(base, `/sessions/${encodeURIComponent(id)}`, { method: "DELETE" });
+
+/** Answers a question or approval on any computer (Needs you). */
+export const answerQuestion = (base: string, q: Question, reply: { answer?: string; approved?: boolean }) =>
+  getJSON<Question>(base, `/tasks/${encodeURIComponent(q.taskId)}/questions/${encodeURIComponent(q.id)}/answer`, {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(reply),
+  });
 
 export async function uploadImage(base: string, file: File): Promise<Upload> {
   const form = new FormData();

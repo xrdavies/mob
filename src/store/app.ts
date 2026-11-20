@@ -42,9 +42,13 @@ interface Persisted {
   sidebarOpen: boolean;
   previewOpen: boolean;
   theme: Theme;
+  /** Conversations listed under each computer before "Show N more" (Appearance). */
+  perComputer: number;
 }
 
 interface Ephemeral {
+  /** The main area: the open conversation, or every question waiting across computers. */
+  view: "chat" | "needs";
   turnPrefs: Record<string, TurnPrefs>;
   settingsOpen: boolean;
   settingsTab: SettingsTab;
@@ -134,6 +138,7 @@ function initial(): Persisted {
     sidebarOpen: true,
     previewOpen: false,
     theme: "system",
+    perComputer: 3,
   };
 }
 
@@ -141,6 +146,7 @@ export const useApp = create<AppState>()(
   persist(
     (set, get) => ({
       ...initial(),
+      view: "chat",
       turnPrefs: {},
       settingsOpen: false,
       settingsTab: "machines",
@@ -155,7 +161,7 @@ export const useApp = create<AppState>()(
       fullscreen: false,
       liveConnect: 0,
       set: (patch) => set(patch),
-      selectMachine: (id) => set({ activeMachineId: id, fullscreen: false }),
+      selectMachine: (id) => set({ activeMachineId: id, fullscreen: false, view: "chat" }),
       togglePreview: (open = !get().previewOpen) => set(open ? { previewOpen: true } : { previewOpen: false, fullscreen: false }),
       saveMachine: (m) =>
         set({
@@ -260,6 +266,7 @@ export const useApp = create<AppState>()(
       partialize: (s): Persisted => ({
         machines: s.machines, activeMachineId: s.activeMachineId, savedSessions: s.savedSessions,
         collapsed: s.collapsed, sidebarOpen: s.sidebarOpen, previewOpen: s.previewOpen, theme: s.theme,
+        perComputer: s.perComputer,
       }),
     },
   ),

@@ -6,7 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { invoke } from "@tauri-apps/api/core";
 import type { Health } from "@/api/types";
 import { supports } from "@/api/client";
-import { isTauri } from "@/components/TitleBar";
+import { isTauri } from "@/lib/tauri";
 import { Spinner } from "@/components/StatusIcon";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";

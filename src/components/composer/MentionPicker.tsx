@@ -4,7 +4,7 @@ import { Kbd } from "@/components/ui/kbd";
 import { mentionCandidates, shortId } from "@/lib/collab";
 import { cn } from "@/lib/utils";
 
-const RUNNER_LABELS: Record<string, string> = { codex: "Codex", claude: "Claude Code", pi: "Pi" };
+import { RUNNER_LABELS } from "@/components/AgentAvatar";
 
 /**
  * Agents you can @-mention, shown above the composer while an @ word is being typed: agents with a

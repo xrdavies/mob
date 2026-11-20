@@ -1,12 +1,12 @@
 import { Check, CircleHelp, Clock, ShieldAlert, X } from "lucide-react";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import type { Question } from "@/api/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useChat } from "@/hooks/useChat";
 import { cn } from "@/lib/utils";
 
-function Settled({ q }: { q: Question }) {
+function Settled({ q, className }: { q: Question; className?: string }) {
   const approval = q.kind === "approval";
   let line: string;
   let tone = "text-muted-foreground";
@@ -22,7 +22,7 @@ function Settled({ q }: { q: Question }) {
   }
   const Icon = approval ? ShieldAlert : CircleHelp;
   return (
-    <div className="ml-9 flex items-start gap-2.5 rounded-lg border px-3 py-2 text-[13px]">
+    <div className={cn("ml-9 flex items-start gap-2.5 rounded-lg border px-3 py-2 text-[13px]", className)}>
       <Icon className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
       <div className="min-w-0">
         <p className="text-foreground/85">{q.text}</p>
@@ -35,16 +35,27 @@ function Settled({ q }: { q: Question }) {
   );
 }
 
-/** A decision the agent is waiting for, answered from the timeline. */
-export function QuestionCard({ q }: { q: Question }) {
+export type Reply = { answer?: string; approved?: boolean };
+
+/**
+ * A decision the agent is waiting for, answered from the timeline, or from Needs you with onAnswer
+ * (any computer).
+ */
+export function QuestionCard({ q, onAnswer, className, header }: {
+  q: Question;
+  onAnswer?: (q: Question, reply: Reply) => Promise<boolean>;
+  className?: string;
+  /** Replaces the kind line, e.g. which conversation and computer asks. */
+  header?: ReactNode;
+}) {
   const chat = useChat();
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
-  if (q.status !== "pending") return <Settled q={q} />;
+  if (q.status !== "pending") return <Settled q={q} className={className} />;
 
-  const send = async (reply: { answer?: string; approved?: boolean }) => {
+  const send = async (reply: Reply) => {
     setSending(true);
-    await chat.answer(q, reply);
+    await (onAnswer ?? ((x: Question, r: Reply) => chat.answer(x, r)))(q, reply);
     setSending(false);
   };
   const approval = q.kind === "approval";
@@ -52,13 +63,15 @@ export function QuestionCard({ q }: { q: Question }) {
   const freeText = q.allowText || options.length === 0;
 
   return (
-    <div className="ml-9 rounded-xl border border-warning/40 bg-warning/5 p-3.5" role="group" aria-label="The agent is waiting for you">
+    <div className={cn("ml-9 rounded-xl border border-warning/40 bg-warning/5 p-3.5", className)} role="group" aria-label="The agent is waiting for you">
       <div className="flex items-start gap-2.5">
         {approval ? <ShieldAlert className="mt-0.5 size-4 shrink-0 text-warning" /> : <CircleHelp className="mt-0.5 size-4 shrink-0 text-warning" />}
         <div className="min-w-0 flex-1">
-          <p className="text-[11px] font-medium uppercase tracking-wide text-warning">
-            {approval ? "Approval needed" : "The agent asks"}
-          </p>
+          {header ?? (
+            <p className="text-[11px] font-medium uppercase tracking-wide text-warning">
+              {approval ? "Approval needed" : "The agent asks"}
+            </p>
+          )}
           <p className="mt-0.5 text-[14px] font-medium leading-snug">{q.text}</p>
           {q.details && <p className="mt-1 whitespace-pre-wrap text-[13px] text-muted-foreground">{q.details}</p>}
         </div>

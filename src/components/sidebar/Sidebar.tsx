@@ -1,30 +1,37 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  Archive, ArchiveRestore, AtSign, ChevronRight, Circle, CircleDot, Laptop, Monitor, MonitorX, MoreHorizontal, Pencil, Pin, PinOff, Plus, Settings, Share2, SquarePen, Star, Trash2,
+  Archive, ArchiveRestore, AtSign, ChevronRight, Laptop, Monitor, MonitorX, MoreHorizontal, PanelLeft, Pencil, Pin, PinOff, Plus, Search, Server,
+  Settings, Share2, SquarePen, Trash2,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { closeDesktop, fetchArchived, seedDesktop, sessionDesktops, supports } from "@/api/client";
+import { closeDesktop, deleteSessionAt, fetchArchived, patchSessionAt, seedDesktop, sessionDesktops, supports } from "@/api/client";
 import type { Session } from "@/api/types";
-import { StatusIcon, WaitingIcon } from "@/components/StatusIcon";
+import { AgentAvatar } from "@/components/AgentAvatar";
+import { Spinner, WaitingIcon } from "@/components/StatusIcon";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
+import { IconButton } from "@/components/ui/icon-button";
 import {
   ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger,
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/menu";
 import { Kbd } from "@/components/ui/kbd";
-import { MOD } from "@/lib/platform";
+import { isMac, MOD, shortcut } from "@/lib/platform";
 import { chat, useChat } from "@/hooks/useChat";
+import { useComputerSessions, useNeedsYou } from "@/hooks/useComputers";
 import { useDesktops, useHealth, useQueue } from "@/hooks/useMachine";
+import { newChatOn, openSession } from "@/hooks/navigate";
+import { sessionLine, visibleSessions } from "@/lib/computers";
 import { desktopMark, desktopOf, seedErrorText } from "@/lib/desktops";
 import { imeGuard } from "@/lib/ime";
+import { isTauri } from "@/lib/tauri";
 import { cn, shortAgo } from "@/lib/utils";
 import { HandleDialog } from "./HandleDialog";
 import { fallbackAddress, RouteChip, RouteContextItems, useReachable } from "@/components/MachineRoute";
-import { addressLabel, currentAddress } from "@/lib/machines";
+import { addressLabel, currentAddress, isLocal } from "@/lib/machines";
 import { baseUrl, needsPairing, useApp, type Machine } from "@/store/app";
-import { useComposer } from "@/store/composer";
+
 
 type Action = "rename" | "pin" | "archive" | "unarchive" | "delete" | "closeDesktop" | "seed" | "handle";
 
@@ -38,7 +45,7 @@ function SessionActions({ session, admin, desktops, hasDesktop, collab, onAction
   Item: typeof DropdownMenuItem | typeof ContextMenuItem;
   Separator: typeof DropdownMenuSeparator | typeof ContextMenuSeparator;
 }) {
-  if (!admin) return <Item disabled>Update office mobd to manage sessions</Item>;
+  if (!admin) return <Item disabled>Update mobd on this computer to manage conversations</Item>;
   const busy = !!session.activeTaskId;
   return (
     <>
@@ -63,7 +70,22 @@ function SessionActions({ session, admin, desktops, hasDesktop, collab, onAction
   );
 }
 
-function SessionRow({ session, active, admin, desktops, hasDesktop, position, onOpen, onAction }: {
+/** The line under a conversation's title: its state in the status vocabulary, and @handle. */
+function StatusLine({ session, position }: { session: Session; position?: number }) {
+  const line = sessionLine(session, position);
+  return (
+    <span className="flex min-w-0 items-center gap-1 text-[11.5px] text-muted-foreground">
+      {line.tone === "needs" && <span className="flex items-center gap-1 font-medium text-warning"><WaitingIcon className="size-3" />{line.text}</span>}
+      {line.tone === "working" && <span className="flex items-center gap-1 text-accent"><Spinner className="size-2.5 border-[1.5px]" />{line.text}</span>}
+      {line.tone === "queued" && <span className="flex items-center gap-1"><span className="size-2.5 rounded-full border-[1.5px] border-dashed border-muted-foreground/70" />{line.text}</span>}
+      {line.tone === "failed" && <span className="font-medium text-danger">✕ {line.text}</span>}
+      {line.tone === "done" && <span><span className="text-success">✓</span> {line.text}{session.updatedAt && ` · ${shortAgo(session.updatedAt)}`}</span>}
+      {session.handle && <span className="truncate">· @{session.handle}</span>}
+    </span>
+  );
+}
+
+function SessionRow({ session, active, admin, desktops, hasDesktop, position, onOpen, onAction, onRename }: {
   session: Session;
   active: boolean;
   admin: boolean;
@@ -72,6 +94,7 @@ function SessionRow({ session, active, admin, desktops, hasDesktop, position, on
   position?: number;
   onOpen: () => void;
   onAction: (a: Action) => void;
+  onRename: (title: string) => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [title, setTitle] = useState(session.title);
@@ -84,7 +107,7 @@ function SessionRow({ session, active, admin, desktops, hasDesktop, position, on
   const commit = () => {
     setEditing(false);
     const next = title.trim();
-    if (next && next !== session.title) void chat.patchSession(session.id, { title: next });
+    if (next && next !== session.title) onRename(next);
   };
   if (editing) {
     return (
@@ -101,13 +124,11 @@ function SessionRow({ session, active, admin, desktops, hasDesktop, position, on
           if (e.key === "Enter") commit();
           if (e.key === "Escape") setEditing(false);
         }}
-        aria-label="Session title"
-        className="mx-1 h-7 w-[calc(100%-8px)] rounded-md border border-accent bg-background px-2 text-[13px] outline-none"
+        aria-label="Conversation title"
+        className="mx-1 my-1 h-8 w-[calc(100%-8px)] rounded-md border border-accent bg-background px-2 text-[13px] outline-none"
       />
     );
   }
-  const status = session.activeTaskId ? session.status : session.status === "failed" ? "failed" : null;
-  const DesktopIcon = hasDesktop === "asleep" ? Circle : hasDesktop ? CircleDot : null;
   return (
     <ContextMenu>
       <ContextMenuTrigger asChild>
@@ -120,47 +141,51 @@ function SessionRow({ session, active, admin, desktops, hasDesktop, position, on
           onDoubleClick={() => admin && act("rename")}
           title={session.title}
           className={cn(
-            "group relative flex h-8 cursor-default items-center gap-2 rounded-md pl-2.5 pr-1.5 text-[13px] outline-none",
-            active ? "bg-foreground/[0.07] font-medium text-foreground" : "text-foreground/80 hover:bg-foreground/[0.04]",
+            "group relative flex cursor-default items-start gap-2 rounded-md py-1.5 pl-2 pr-1 outline-none focus-visible:ring-2 focus-visible:ring-ring",
+            active ? "bg-foreground/[0.07]" : "hover:bg-foreground/[0.04]",
           )}
         >
-          {desktops && DesktopIcon && <DesktopIcon className={cn("size-2.5 shrink-0", hasDesktop === "asleep" ? "text-muted-foreground" : "fill-success text-success")} />}
-          {session.pinned && <Star className="size-3 shrink-0 fill-warning text-warning" />}
-          <span className="min-w-0 flex-1 truncate">{session.title}</span>
-          {session.handle && <span className="shrink-0 rounded bg-accent-soft px-1 font-mono text-[11px] font-normal text-accent">@{session.handle}</span>}
-          <span className="flex w-7 shrink-0 justify-end group-hover:hidden group-focus-within:hidden">
-            {session.waiting ? <WaitingIcon /> : status ? <StatusIcon status={status} position={position} /> : <span className="text-[11px] text-muted-foreground">{shortAgo(session.updatedAt)}</span>}
+          <AgentAvatar runner={session.runner} className="mt-px" />
+          <span className="grid min-w-0 flex-1">
+            <span className={cn("flex items-center gap-1 truncate text-[13px] leading-[18px]", active ? "font-medium text-foreground" : "text-foreground/85")}>
+              {session.pinned && <Pin className="size-3 shrink-0 text-muted-foreground" aria-label="Pinned" />}
+              <span className="truncate">{session.title}</span>
+            </span>
+            <StatusLine session={session} position={position} />
           </span>
+          {desktops && hasDesktop && (
+            <span title={hasDesktop === "asleep" ? "Desktop asleep" : "Desktop running"}
+              className={cn("mt-1.5 size-1.5 shrink-0 rounded-full group-hover:hidden", hasDesktop === "asleep" ? "bg-muted-foreground/40" : "bg-success")} />
+          )}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button
                 type="button"
-                aria-label="Session actions"
+                aria-label="Conversation actions"
                 onClick={(e) => e.stopPropagation()}
-                className="hidden size-6 items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-foreground group-hover:flex group-focus-within:flex data-[state=open]:flex"
+                className="absolute right-1 top-1.5 hidden size-6 items-center justify-center rounded bg-sidebar text-muted-foreground hover:bg-muted hover:text-foreground group-hover:flex group-focus-within:flex data-[state=open]:flex"
               >
                 <MoreHorizontal className="size-4" />
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" onClick={(e) => e.stopPropagation()}>
-              <SessionActions session={session} admin={admin} desktops={desktops} hasDesktop={!!hasDesktop} collab={chat.collab} onAction={act} Item={DropdownMenuItem} Separator={DropdownMenuSeparator} />
+              <SessionActions session={session} admin={admin} desktops={desktops} hasDesktop={!!hasDesktop} collab={active && chat.collab} onAction={act} Item={DropdownMenuItem} Separator={DropdownMenuSeparator} />
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
       </ContextMenuTrigger>
       <ContextMenuContent>
-        <SessionActions session={session} admin={admin} desktops={desktops} hasDesktop={!!hasDesktop} collab={chat.collab} onAction={act} Item={ContextMenuItem} Separator={ContextMenuSeparator} />
+        <SessionActions session={session} admin={admin} desktops={desktops} hasDesktop={!!hasDesktop} collab={active && chat.collab} onAction={act} Item={ContextMenuItem} Separator={ContextMenuSeparator} />
       </ContextMenuContent>
     </ContextMenu>
   );
 }
 
-function ArchivedGroup({ base, admin, desktops, desktopsData, onAction }: {
+function ArchivedGroup({ base, admin, onAction, onRename }: {
   base: string;
   admin: boolean;
-  desktops: boolean;
-  desktopsData: ReturnType<typeof useDesktops>["data"];
   onAction: (s: Session, a: Action) => void;
+  onRename: (s: Session, title: string) => void;
 }) {
   const [open, setOpen] = useState(false);
   const chatState = useChat();
@@ -171,25 +196,28 @@ function ArchivedGroup({ base, admin, desktops, desktopsData, onAction }: {
   });
   if (!admin) return null;
   return (
-    <div className="mt-1">
-      <button type="button" onClick={() => setOpen(!open)} className="flex h-7 w-full items-center gap-1.5 rounded-md px-2.5 text-xs text-muted-foreground hover:text-foreground">
+    <div>
+      <button type="button" onClick={() => setOpen(!open)} className="flex h-7 w-full items-center gap-1.5 rounded-md px-2 text-xs text-muted-foreground hover:text-foreground">
         <ChevronRight className={cn("size-3 transition-transform", open && "rotate-90")} /> Archived
       </button>
-      {open && (data?.length ? data.map((s) => {
-        const mark = desktopMark(desktopOf(desktopsData, s.id));
-        return (
-          <SessionRow key={s.id} session={s} active={chatState.sessionId === s.id} admin={admin} desktops={desktops}
-            hasDesktop={mark === "running" ? true : mark === "asleep" ? "asleep" : false}
-            onOpen={() => void chat.open(s.id)} onAction={(a) => onAction(s, a)} />
-        );
-      }) : <p className="px-7 py-1 text-xs text-muted-foreground/70">Nothing archived</p>)}
+      {open && (data?.length ? data.map((s) => (
+        <SessionRow key={s.id} session={s} active={chatState.sessionId === s.id} admin={admin} desktops={false} hasDesktop={false}
+          onOpen={() => void chat.open(s.id)} onAction={(a) => onAction(s, a)} onRename={(t) => onRename(s, t)} />
+      )) : <p className="px-7 py-1 text-xs text-muted-foreground/70">Nothing archived</p>)}
     </div>
   );
 }
 
-function MachineGroup({ machine, active, onHandleAction }: { machine: Machine; active: boolean; onHandleAction: (s: Session) => void }) {
+const ComputerIcon = ({ machine, className }: { machine: Machine; className?: string }) => {
+  const Icon = isLocal(machine) ? Laptop : /linux/i.test(machine.name) ? Server : Monitor;
+  return <Icon className={className} aria-label={isLocal(machine) ? "This computer" : undefined} />;
+};
+
+function ComputerGroup({ machine, onHandleAction }: { machine: Machine; onHandleAction: (s: Session) => void }) {
+  const qc = useQueryClient();
   const chatState = useChat();
-  const { selectMachine, selectRoute, collapsed, set, openSettings } = useApp();
+  const { activeMachineId, selectRoute, selectMachine, collapsed, set, openSettings, perComputer, view } = useApp();
+  const active = machine.id === activeMachineId;
   const unpaired = needsPairing(machine);
   const reachable = useReachable(machine);
   const route = currentAddress(machine);
@@ -197,25 +225,40 @@ function MachineGroup({ machine, active, onHandleAction }: { machine: Machine; a
   const base = baseUrl(machine);
   const { data: health, isError } = useHealth(machine);
   const admin = supports(health, "sessionAdmin");
-  const desktops = sessionDesktops(health);
-  const desktopsData = useDesktops(base, active && desktops);
+  const desktops = active && sessionDesktops(health);
+  const desktopsData = useDesktops(base, desktops);
   const { data: queue } = useQueue(base, active && supports(health, "queue"));
   const positionOf = (sessionId: string) => queue?.queued.find((t) => t.sessionId === sessionId)?.queuePosition;
+  const { sessions, loading } = useComputerSessions(machine);
+  const [expanded, setExpanded] = useState(false);
   const [confirm, setConfirm] = useState<{ session: Session; action: "archive" | "delete" | "closeDesktop" } | null>(null);
-  const isCollapsed = !!collapsed[machine.id] && active;
+  const offline = isError || reachable === false;
+  // Offline computers stay listed, folded, until the user unfolds them.
+  const isCollapsed = collapsed[machine.id] ?? offline;
   const checksBad = health && Object.values(health.checks ?? {}).some((c) => !c.ok && !c.unknown);
-  const dot = unpaired ? "bg-warning" : isError ? "bg-danger" : !health ? "bg-muted-foreground/30" : checksBad ? "bg-warning" : "bg-success";
+  const dot = unpaired ? "bg-warning" : offline ? "bg-muted-foreground/40" : !health ? "bg-muted-foreground/25" : checksBad ? "bg-warning" : "bg-success";
+  const waiting = sessions.filter((s) => s.waiting).length;
+  const ordered = [...sessions.filter((s) => s.pinned), ...sessions.filter((s) => !s.pinned)];
+  const openId = active && view === "chat" ? chatState.sessionId : null;
+  const { shown, hidden } = visibleSessions(ordered, perComputer, expanded, openId);
+
+  // The open computer's conversations change through Chat; another computer's through its API and stream.
+  const patch = (s: Session, p: { title?: string; pinned?: boolean; archived?: boolean }) => {
+    if (active) return void chat.patchSession(s.id, p);
+    patchSessionAt(base, s.id, p).catch((err) => toast.error(err instanceof Error ? err.message : String(err)));
+  };
+  const remove = (s: Session) => {
+    if (active) return void chat.deleteSession(s.id);
+    deleteSessionAt(base, s.id)
+      .then(() => qc.setQueryData<Session[]>(["sessions", base], (list) => (list ?? []).filter((x) => x.id !== s.id)))
+      .catch((err) => toast.error(err instanceof Error ? err.message : String(err)));
+  };
 
   const onAction = async (s: Session, a: Action) => {
-    if (a === "handle") {
-      onHandleAction(s);
-      return;
-    }
-    if (a === "pin") void chat.patchSession(s.id, { pinned: !s.pinned });
-    else if (a === "archive") setConfirm({ session: s, action: "archive" });
-    else if (a === "unarchive") void chat.patchSession(s.id, { archived: false });
-    else if (a === "delete") setConfirm({ session: s, action: "delete" });
-    else if (a === "closeDesktop") setConfirm({ session: s, action: "closeDesktop" });
+    if (a === "handle") return onHandleAction(s);
+    if (a === "pin") patch(s, { pinned: !s.pinned });
+    else if (a === "archive" || a === "delete" || a === "closeDesktop") setConfirm({ session: s, action: a });
+    else if (a === "unarchive") patch(s, { archived: false });
     else if (a === "seed") {
       try {
         await seedDesktop(base, s.id);
@@ -230,8 +273,8 @@ function MachineGroup({ machine, active, onHandleAction }: { machine: Machine; a
     if (!confirm) return;
     const { session: s, action } = confirm;
     setConfirm(null);
-    if (action === "archive") void chat.patchSession(s.id, { archived: true });
-    else if (action === "delete") void chat.deleteSession(s.id);
+    if (action === "archive") patch(s, { archived: true });
+    else if (action === "delete") remove(s);
     else if (action === "closeDesktop") {
       try {
         await closeDesktop(base, s.id);
@@ -242,34 +285,40 @@ function MachineGroup({ machine, active, onHandleAction }: { machine: Machine; a
     }
   };
 
+  const toggle = () => set({ collapsed: { ...collapsed, [machine.id]: !isCollapsed } });
+
   return (
-    <div className="mb-2">
+    <div className="mb-1.5">
       <ContextMenu>
         <ContextMenuTrigger asChild>
-          <div className="flex h-7 w-full items-center gap-1.5 rounded-md px-2 text-xs font-medium text-muted-foreground hover:text-foreground">
-            <button
-              type="button"
-              onClick={() => (active ? set({ collapsed: { ...collapsed, [machine.id]: !collapsed[machine.id] } }) : selectMachine(machine.id))}
-              className="flex min-w-0 flex-1 items-center gap-2 text-left"
-            >
-              {machine.local ? <Laptop className="size-3.5 shrink-0" aria-label="This computer" /> : <Monitor className="size-3.5 shrink-0" />}
-              <span className="min-w-0 flex-1 truncate" title={machine.local ? "This computer" : undefined}>{machine.name}</span>
-              {unpaired && !other && <span className="text-[10.5px] font-normal text-warning">Needs pairing</span>}
+          <div className="group/computer flex h-8 w-full items-center gap-1.5 rounded-md pl-1 pr-1 text-[13px] font-medium hover:bg-foreground/[0.04]">
+            <button type="button" onClick={toggle} aria-expanded={!isCollapsed} className="flex min-w-0 flex-1 items-center gap-1.5 text-left">
+              <ChevronRight className={cn("size-3 shrink-0 text-muted-foreground transition-transform", !isCollapsed && "rotate-90")} />
+              <ComputerIcon machine={machine} className="size-3.5 shrink-0 text-muted-foreground" />
+              <span className={cn("min-w-0 truncate", offline && "text-muted-foreground")}>{machine.name}</span>
+              <span className={cn("size-1.5 shrink-0 rounded-full", dot)} title={unpaired ? "Needs pairing" : offline ? "Offline" : checksBad ? "Needs attention" : "Online"} />
+              <span className="ml-auto flex shrink-0 items-center gap-1 pl-1 text-[11px] font-normal text-muted-foreground group-hover/computer:hidden">
+                {unpaired ? "Needs pairing" : offline ? "Offline" : waiting > 0 && <><span className="tabular-nums text-warning">{waiting}</span><WaitingIcon className="size-3" /></>}
+              </span>
             </button>
             <RouteChip machine={machine} />
-            <span className={cn("size-1.5 shrink-0 rounded-full", dot)} title={reachable === false ? "Not reachable" : undefined} />
-            {active && <ChevronRight className={cn("size-3 shrink-0 transition-transform", !isCollapsed && "rotate-90")} />}
+            {!unpaired && (
+              <IconButton label={`New chat on ${machine.name}`} className="hidden size-6 group-hover/computer:inline-flex" onClick={() => newChatOn(machine.id)}>
+                <Plus />
+              </IconButton>
+            )}
           </div>
         </ContextMenuTrigger>
         <ContextMenuContent>
+          {!unpaired && <ContextMenuItem onSelect={() => newChatOn(machine.id)}><SquarePen /> New chat</ContextMenuItem>}
           <RouteContextItems machine={machine} />
-          {machine.addresses.length > 1 && <ContextMenuSeparator />}
-          <ContextMenuItem onSelect={() => openSettings("machines", machine.id)}><Settings /> Machine settings…</ContextMenuItem>
+          <ContextMenuSeparator />
+          <ContextMenuItem onSelect={() => openSettings("machines", machine.id)}><Settings /> Computer settings…</ContextMenuItem>
         </ContextMenuContent>
       </ContextMenu>
       {route && other && (
         // The address in use fails and there is another: offer it, never switch by itself.
-        <p className="px-7 text-[11px] text-muted-foreground/80">
+        <p className="pl-7 text-[11px] text-muted-foreground">
           {addressLabel(machine, route)} {unpaired ? "needs pairing" : "not reachable"} ·{" "}
           <button type="button" className="font-medium text-foreground hover:underline"
             onClick={() => { selectRoute(machine.id, other.id); selectMachine(machine.id); }}>
@@ -277,35 +326,42 @@ function MachineGroup({ machine, active, onHandleAction }: { machine: Machine; a
           </button>
         </p>
       )}
-      {active && unpaired && !other && (
+      {!isCollapsed && unpaired && !other && (
         <button type="button" onClick={() => useApp.getState().openAdd(machine.id)}
-          className="px-7 text-left text-[11px] text-muted-foreground/80 hover:text-foreground">
+          className="pl-7 text-left text-[11.5px] font-medium text-accent hover:underline">
           Pair again…
         </button>
       )}
-      {active && !isCollapsed && !unpaired && (
-        <div className="mt-0.5 grid grid-cols-[minmax(0,1fr)] gap-px">
-          {chatState.loading && !chatState.sessions.length && (
-            <div className="grid gap-1.5 px-2.5 py-1">
+      {!isCollapsed && !unpaired && (
+        <div className="mt-px grid grid-cols-[minmax(0,1fr)] gap-px pl-2.5">
+          {loading && (
+            <div className="grid gap-2 px-2 py-1.5">
               {[70, 55, 80].map((w) => <div key={w} className="h-3.5 animate-pulse rounded bg-muted" style={{ width: `${w}%` }} />)}
             </div>
           )}
-          {chatState.sessions.map((s) => {
-            const mark = desktopMark(desktopOf(desktopsData.data, s.id));
+          {shown.map((s) => {
+            const mark = desktops ? desktopMark(desktopOf(desktopsData.data, s.id)) : null;
             return (
-              <SessionRow key={s.id} session={s} active={chatState.sessionId === s.id} admin={admin} desktops={desktops}
+              <SessionRow key={s.id} session={s} active={openId === s.id} admin={admin} desktops={desktops}
                 hasDesktop={mark === "running" ? true : mark === "asleep" ? "asleep" : false}
-                position={positionOf(s.id)}
-                onOpen={() => void chat.open(s.id)} onAction={(a) => onAction(s, a)} />
+                position={active ? positionOf(s.id) : undefined}
+                onOpen={() => openSession(machine.id, s.id)} onAction={(a) => onAction(s, a)} onRename={(t) => patch(s, { title: t })} />
             );
           })}
-          {chatState.ready && !chatState.sessions.length && (
-            <p className="px-2.5 py-1 text-xs text-muted-foreground/70">No conversations yet</p>
+          {!loading && !sessions.length && !offline && (
+            <button type="button" onClick={() => newChatOn(machine.id)} className="px-2 py-1 text-left text-xs text-muted-foreground hover:text-foreground">
+              No conversations yet
+            </button>
           )}
-          <ArchivedGroup base={base} admin={admin} desktops={desktops} desktopsData={desktopsData.data} onAction={onAction} />
+          {(hidden > 0 || expanded) && (
+            <button type="button" onClick={() => setExpanded(!expanded)}
+              className="h-7 rounded-md px-2 text-left text-xs text-muted-foreground hover:bg-foreground/[0.04] hover:text-foreground">
+              {expanded ? "Show less" : `Show ${hidden} more`}
+            </button>
+          )}
+          {expanded && active && <ArchivedGroup base={base} admin={admin} onAction={onAction} onRename={(s, t) => patch(s, { title: t })} />}
         </div>
       )}
-      {!active && <p className="px-7 text-[11px] text-muted-foreground/60">Select to show sessions</p>}
       <Dialog open={!!confirm} onOpenChange={(o) => !o && setConfirm(null)}>
         <DialogContent className="w-[400px] p-5" showClose={false}>
           <DialogTitle>
@@ -315,13 +371,13 @@ function MachineGroup({ machine, active, onHandleAction }: { machine: Machine; a
           </DialogTitle>
           <DialogDescription className="mt-1.5">
             {confirm?.action === "delete" && (
-              <>"{confirm.session.title}" and its screenshots are removed from the office computer. {desktops && "Its desktop closes; open windows are lost. "}This cannot be undone.</>
+              <>"{confirm.session.title}" and its screenshots are removed from {machine.name}. {desktops && "Its desktop closes; open windows are lost. "}This cannot be undone.</>
             )}
             {confirm?.action === "archive" && (
-              <>"{confirm.session.title}" moves to Archived. {desktops && "Its desktop closes; open windows are lost. "}Files and screenshots stay on the office computer.</>
+              <>"{confirm.session.title}" moves to Archived. {desktops && "Its desktop closes; open windows are lost. "}Files and screenshots stay on {machine.name}.</>
             )}
             {confirm?.action === "closeDesktop" && (
-              <>The running turn will be stopped and open windows closed. Files and browser logins are kept.</>
+              <>The running turn stops and open windows close. Files and browser logins are kept.</>
             )}
           </DialogDescription>
           <div className="mt-5 flex justify-end gap-2">
@@ -338,38 +394,64 @@ function MachineGroup({ machine, active, onHandleAction }: { machine: Machine; a
   );
 }
 
+function NeedsYouRow() {
+  const waiting = useNeedsYou();
+  const { view, set } = useApp();
+  return (
+    <button
+      type="button"
+      aria-current={view === "needs" ? "page" : undefined}
+      onClick={() => set({ view: "needs" })}
+      className={cn(
+        "flex h-8 w-full items-center gap-2 rounded-md px-2 text-[13px] outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        view === "needs" ? "bg-foreground/[0.07] font-medium" : "hover:bg-foreground/[0.04]",
+      )}
+    >
+      <WaitingIcon className={cn(!waiting.length && "opacity-40 grayscale")} />
+      Needs you
+      {waiting.length > 0 && (
+        <span className="ml-auto rounded-full bg-warning px-1.5 text-[11px] font-semibold tabular-nums leading-[18px] text-white">{waiting.length}</span>
+      )}
+    </button>
+  );
+}
+
 export function Sidebar() {
   const [handleDialog, setHandleDialog] = useState<Session | null>(null);
-  const { machines, activeMachineId, openSettings } = useApp();
-  const chatState = useChat();
-  const focus = useComposer((s) => s.focus);
+  const { machines, openSettings, set, activeMachineId } = useApp();
   return (
-    <aside className="flex h-full w-[248px] shrink-0 flex-col border-r bg-sidebar">
-      <div className="px-2 pb-2 pt-1">
-        <Button
-          variant="secondary"
-          className="w-full justify-start gap-2 bg-background/60"
-          disabled={!chatState.ready || chatState.submitting}
-          onClick={() => {
-            chat.newChat();
-            focus();
-          }}
-        >
-          <SquarePen className="size-4" />
-          New chat
-          <span className="ml-auto flex gap-0.5"><Kbd>{MOD}</Kbd><Kbd>N</Kbd></span>
-        </Button>
+    <aside className="flex h-full w-[272px] shrink-0 flex-col border-r bg-sidebar">
+      <div data-tauri-drag-region className={cn("flex h-12 shrink-0 items-center gap-1.5 pr-2", isTauri && isMac ? "pl-[78px]" : "pl-3")}>
+        <img src="/logo.svg" alt="" draggable={false} data-tauri-drag-region className="size-6 shrink-0" />
+        <span data-tauri-drag-region className="flex-1 text-[14px] font-semibold tracking-tight">Mob</span>
+        <IconButton label="Hide sidebar" shortcut={shortcut("B")} onClick={() => set({ sidebarOpen: false })}><PanelLeft /></IconButton>
+        <IconButton label="New chat" shortcut={shortcut("N")} disabled={!activeMachineId} onClick={() => activeMachineId && newChatOn(activeMachineId)}>
+          <SquarePen />
+        </IconButton>
       </div>
-      <nav className="min-h-0 flex-1 overflow-y-auto px-2 pb-2" aria-label="Sessions">
-        {machines.map((m) => <MachineGroup key={m.id} machine={m} active={m.id === activeMachineId} onHandleAction={setHandleDialog} />)}
+      <div className="grid gap-0.5 px-2 pb-2">
+        <button
+          type="button"
+          onClick={() => set({ paletteOpen: true })}
+          className="mb-1 flex h-8 items-center gap-2 rounded-md border bg-background/70 px-2.5 text-[13px] text-muted-foreground shadow-xs hover:bg-background"
+        >
+          <Search className="size-3.5" /> Search or ask an agent…
+          <span className="ml-auto flex gap-0.5"><Kbd>{MOD}</Kbd><Kbd>K</Kbd></span>
+        </button>
+        <NeedsYouRow />
+      </div>
+      <nav className="min-h-0 flex-1 overflow-y-auto px-2 pb-2" aria-label="Computers">
+        <div className="flex h-7 items-center pl-2 pr-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+          <span className="flex-1">Computers</span>
+          <IconButton label="Add a computer" className="size-6" onClick={() => useApp.getState().openAdd()}><Plus /></IconButton>
+        </div>
+        {machines.map((m) => <ComputerGroup key={m.id} machine={m} onHandleAction={setHandleDialog} />)}
       </nav>
       <HandleDialog session={handleDialog} onClose={() => setHandleDialog(null)} />
-      <div className="flex gap-1 border-t px-2 py-2">
-        <Button variant="ghost" size="sm" className="flex-1 justify-start" onClick={() => openSettings("machines", null)}>
+      <div className="border-t px-2 py-2">
+        <Button variant="ghost" size="sm" className="w-full justify-start text-[13px] font-normal" onClick={() => openSettings("machines", null)}>
           <Settings className="size-3.5" /> Settings
-        </Button>
-        <Button variant="ghost" size="icon-sm" aria-label="Add a computer" onClick={() => useApp.getState().openAdd()}>
-          <Plus />
+          <span className="ml-auto text-[11px] text-muted-foreground">{shortcut(",")}</span>
         </Button>
       </div>
     </aside>

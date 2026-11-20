@@ -41,7 +41,7 @@ function UserMessage({ message, task, base }: { message: ChatMessage; task?: Tas
   );
 }
 
-const RUNNER_LABELS: Record<string, string> = { codex: "Codex", claude: "Claude Code", pi: "Pi" };
+import { RUNNER_LABELS } from "@/components/AgentAvatar";
 
 function AssistantMessage({ message }: { message: ChatMessage }) {
   const runnerName = useChat().session?.runner;

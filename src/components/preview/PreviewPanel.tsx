@@ -4,7 +4,7 @@ import { screenUrl, sessionDesktops, supports } from "@/api/client";
 import type { Health, Queue } from "@/api/types";
 import { activityIcon } from "@/components/timeline/activity";
 import { Spinner, StatusIcon } from "@/components/StatusIcon";
-import { isTauri } from "@/components/TitleBar";
+import { isTauri } from "@/lib/tauri";
 import { Button } from "@/components/ui/button";
 import { Kbd } from "@/components/ui/kbd";
 import { isMac, shortcut } from "@/lib/platform";
