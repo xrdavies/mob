@@ -402,9 +402,11 @@ export function ScreenView({ machine, health }: { machine: Machine; health?: Hea
 
   // Expanded, the screen fills the app window like a remote desktop app: its toolbar takes the title
   // bar row (room for the window buttons, drags the window), the picture everything below.
-  if (fullscreen) {
-    return (
-      <div className="fixed inset-0 z-40 flex flex-col bg-black">
+  // One element tree for both sizes: the video and canvas the stream draws into, and the stage the
+  // resize observers watch, must stay the same elements when the screen is expanded or collapsed.
+  return (
+    <section aria-label={`${machine.name} screen`} className={cn(fullscreen ? "fixed inset-0 z-40 flex flex-col bg-black" : "px-3 pt-3")}>
+      {fullscreen ? (
         <div data-tauri-drag-region
           className={cn("flex h-11 shrink-0 select-none items-center gap-2 border-b border-white/10 bg-[#1b1c21] pr-2 text-white/85", isTauri && isMac ? "pl-[78px]" : "pl-3")}>
           <span className={cn("size-2 shrink-0 rounded-full", connected ? "bg-success" : "bg-white/30")} />
@@ -419,16 +421,11 @@ export function ScreenView({ machine, health }: { machine: Machine; health?: Hea
             <IconButton label="Back to the panel" className={tool} onClick={() => set({ fullscreen: false })}><Shrink /></IconButton>
           )}
         </div>
-        {screen}
-      </div>
-    );
-  }
-
-  return (
-    <section className="px-3 pt-3" aria-label={`${machine.name} screen`}>
-      <h3 className="mb-1.5 flex items-center gap-1.5 px-0.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-        Screen <span className="font-normal normal-case tracking-normal">{machine.name}</span>
-      </h3>
+      ) : (
+        <h3 className="mb-1.5 flex items-center gap-1.5 px-0.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+          Screen <span className="font-normal normal-case tracking-normal">{machine.name}</span>
+        </h3>
+      )}
       {screen}
     </section>
   );
