@@ -124,6 +124,17 @@ there (mobd [docs/mob-desktop-local-mobd.md](https://github.com/xrdavies/mobd/bl
 - **Copy rule: show state, don't explain it.** A hint stays only if it shows state, prevents a mistake, or says
   how to fix something.
 
+### D11. No new mobd fields for live status in the sidebar
+
+- **Choice:** running conversations show "Working" in the sidebar; the current step appears in the open
+  conversation (steps, Activity). Considered: a latest-step field on every session summary; dropped.
+- **Reason:** today's Activity already covers it; the sidebar line is not worth a protocol change.
+
+### D12. Maintenance from the app, not from agents
+
+- **Choice:** config changes, restart and upgrade of any computer are done by the user in Settings, through mobd's
+  remote maintenance. Agents get no tools for it (mobd remote-maintenance D2).
+
 ### D10. Later, not now
 
 - An optional "All agents" board (Solution B) once people run many agents at once.
@@ -183,10 +194,25 @@ Settings is a sheet: app pages and computers in the left column, "Add a computer
 
 ### mobd and API
 
-Everything shown uses existing APIs: `/health` (agents, checks, screenUse), `/events`, `/settings`, the stream
-endpoints, pairing and `DELETE /pair`, and the control socket (`/clients`, `/permissions`, `/invitations`). Not yet
-in mobd and shown as future in the mockup: plan/usage per conversation beyond today's task fields, per-computer
-notification levels (app-side only), "From anywhere" setup from Desktop (wraps `mobd remote setup`).
+Most of the redesign uses APIs mobd has today:
+
+| Part | mobd source |
+| --- | --- |
+| Sidebar status lines, Needs you | `/events` session summaries (`status`, `waiting`), one stream per computer. Running conversations show "Working"; the current step is shown only in the open conversation (no new field, D11) |
+| Steps in replies, Activity | Task activities (`command`, `exitCode`, `text`, `changes`, `images`, times) |
+| Details | Task `model`, `effort`, `usage` (tokens, `costUsd`), times; `/health` `workdir` / `claudeWorkdir` |
+| Agents tab (read) | `/health` `agents` (state, enabled, `bin`, `version`) and `GET /settings` |
+| Agents tab (models, defaults, permissions) | `PUT /settings`, applies immediately |
+| Agents tab (enable, program, settings source), working folder | mobd [remote maintenance](https://github.com/xrdavies/mobd/blob/main/docs/remote-maintenance.md): `PUT /config`, then **Restart to apply** |
+| Service tab: restart, update | Remote maintenance operations (`POST /maintenance`, same code as `mobd upgrade`); Apply and Update are enabled only while no task runs |
+| Service tab: stop, start at login, logs, uninstall (this computer) | Control socket and `mobd` commands |
+| Devices & access | Control socket `/clients`, `/permissions`, `/invitations`; `DELETE /pair` |
+| Screen | `GET /screen` (last picture), stream endpoints (live, control) |
+
+Until mobd ships remote maintenance, the Agents tab's startup settings are editable for this computer only (Desktop
+edits `config.json` and restarts) and read-only for other computers; Update uses Desktop's own installer for this
+computer. App-side only: per-computer notification levels, conversation totals, screen sleep timing. Later: "From
+anywhere" setup from Desktop (wraps `mobd remote setup`).
 
 ### Build order
 
