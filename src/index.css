@@ -2,8 +2,12 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
-/* Design tokens: docs/apps-mob-ui.md "Visual language". */
+/* Design tokens: docs/desktop-redesign/README.md "Visual language". The accent is Screen Buddy's
+   purple (docs/brand); mint marks an agent acting (its cursor on a live screen). */
 :root {
+  --mint: #b8eccc;
+  --ink: #282347;
+  --cream: #f9f4e9;
   --background: #ffffff;
   --sidebar: rgba(246, 246, 248, 0.86);
   --panel: #f7f7f9;
@@ -11,13 +15,13 @@
   --border: #e6e6ea;
   --foreground: #111216;
   --muted-foreground: #6b6f7b;
-  --accent: #4f46e5;
+  --accent: #6559e8;
   --accent-foreground: #ffffff;
-  --accent-soft: rgba(79, 70, 229, 0.1);
+  --accent-soft: rgba(101, 89, 232, 0.1);
   --success: #16a34a;
   --warning: #d97706;
   --danger: #dc2626;
-  --ring: rgba(79, 70, 229, 0.45);
+  --ring: rgba(101, 89, 232, 0.45);
   --popover: #ffffff;
   --code: #f6f6f8;
   --shadow: 0 1px 2px rgba(16, 17, 22, 0.06), 0 4px 16px rgba(16, 17, 22, 0.06);
@@ -54,6 +58,9 @@
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
   --color-accent-soft: var(--accent-soft);
+  --color-mint: var(--mint);
+  --color-ink: var(--ink);
+  --color-cream: var(--cream);
   --color-success: var(--success);
   --color-warning: var(--warning);
   --color-danger: var(--danger);

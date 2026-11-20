@@ -1,4 +1,4 @@
-import { CircleHelp, CircleSlash, X } from "lucide-react";
+import { Check, CircleSlash, X } from "lucide-react";
 import type { TaskStatus } from "@/api/types";
 import { cn } from "@/lib/utils";
 
@@ -11,13 +11,23 @@ export function Spinner({ className }: { className?: string }) {
   );
 }
 
-/** The agent is waiting for the user's answer. */
+/** Needs you: the agent waits for the user's answer or approval (an amber diamond, as everywhere). */
 export function WaitingIcon({ className }: { className?: string }) {
-  return <CircleHelp aria-label="Waiting for you" className={cn("size-3.5 text-warning", className)} />;
+  return (
+    <span aria-label="Needs you" className={cn("inline-flex size-3.5 shrink-0 items-center justify-center", className)}>
+      <span className="size-2 rotate-45 rounded-[2px] bg-warning" />
+    </span>
+  );
 }
 
-/** Status language used everywhere: success is silent. */
-export function StatusIcon({ status, position, className }: { status: TaskStatus; position?: number; className?: string }) {
+/**
+ * The five states (docs/desktop-redesign D-status): Working (spinner), Needs you (WaitingIcon), Queued
+ * (dashed circle), Done (green check, only with showDone; silent elsewhere), Failed (red cross).
+ * Shape and color together, so they never depend on color alone.
+ */
+export function StatusIcon({ status, position, showDone, className }: {
+  status: TaskStatus; position?: number; showDone?: boolean; className?: string;
+}) {
   switch (status) {
     case "running":
       return <Spinner className={className} />;
@@ -25,11 +35,14 @@ export function StatusIcon({ status, position, className }: { status: TaskStatus
       return (
         <span
           aria-label={position ? `Queued #${position}` : "Queued"}
-          className={cn("inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-muted px-1 text-[10px] font-semibold text-muted-foreground", className)}
+          title={position ? `Queued #${position}` : "Queued"}
+          className={cn("inline-flex h-3.5 min-w-3.5 items-center justify-center rounded-full border-[1.5px] border-dashed border-muted-foreground/70 px-0.5 text-[9px] font-semibold leading-none text-muted-foreground", className)}
         >
-          {position ?? "…"}
+          {position ?? ""}
         </span>
       );
+    case "succeeded":
+      return showDone ? <Check aria-label="Done" strokeWidth={3} className={cn("size-3.5 text-success", className)} /> : null;
     case "failed":
       return (
         <span aria-label="Failed" className={cn("inline-flex size-3.5 items-center justify-center rounded-full bg-danger text-white", className)}>
