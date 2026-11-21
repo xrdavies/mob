@@ -205,7 +205,7 @@ function AgentPage({ machine, name, view, onBack, m, status }: {
                 </span>
               ))}
               {!a.models.length && <span className="text-xs text-muted-foreground">
-                {suggestions.length ? `None listed: chats offer the ${suggestions.length} models ${label} reports.` : "None listed: chats use the agent's default."}
+                {suggestions.length ? `None listed: chats offer the ${suggestions.length === 1 ? "model" : `${suggestions.length} models`} ${label} reports.` : "None listed: chats use the agent's default."}
               </span>}
             </div>
             <form className="flex gap-1.5" onSubmit={(e) => {
