@@ -1,9 +1,10 @@
-import { Bell, Laptop, Monitor, Palette, Plus, Settings } from "lucide-react";
+import { Bell, Palette, Plus, Settings } from "lucide-react";
 import { AppearancePage, GeneralPage, LogPage, NotificationsPage } from "@/components/settings/AppPages";
 import { ComputerPage } from "@/components/settings/ComputerPage";
+import { ComputerIcon } from "@/components/ComputerIcon";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { useHealth } from "@/hooks/useMachine";
-import { isLocal } from "@/lib/machines";
+
 import { cn } from "@/lib/utils";
 import { needsPairing, useApp, type Machine, type SettingsTab } from "@/store/app";
 
@@ -20,7 +21,7 @@ function ComputerNav({ machine, on, onClick }: { machine: Machine; on: boolean; 
   const tone = needsPairing(machine) ? "bg-warning" : isError ? "bg-muted-foreground/40" : !health ? "bg-muted-foreground/25" : failing ? "bg-warning" : "bg-success";
   return (
     <button type="button" className={navItem(on)} onClick={onClick}>
-      {isLocal(machine) ? <Laptop /> : <Monitor />}
+      <ComputerIcon machine={machine} />
       <span className="min-w-0 flex-1 truncate">{machine.name}</span>
       <span className={cn("size-1.5 rounded-full", tone)} />
     </button>

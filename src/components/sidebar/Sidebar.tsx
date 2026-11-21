@@ -1,13 +1,11 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  Archive, ArchiveRestore, AtSign, ChevronRight, Laptop, Monitor, MonitorX, MoreHorizontal, PanelLeft, Pencil, Pin, PinOff, Plus, Search, Server,
-  Settings, Share2, SquarePen, Trash2,
-} from "lucide-react";
+import { Archive, ArchiveRestore, AtSign, ChevronRight, MonitorX, MoreHorizontal, PanelLeft, Pencil, Pin, PinOff, Plus, Search, Settings, Share2, SquarePen, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { closeDesktop, deleteSessionAt, fetchArchived, patchSessionAt, seedDesktop, sessionDesktops, supports } from "@/api/client";
 import type { Session } from "@/api/types";
 import { AgentAvatar } from "@/components/AgentAvatar";
+import { ComputerIcon } from "@/components/ComputerIcon";
 import { Spinner, WaitingIcon } from "@/components/StatusIcon";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
@@ -29,7 +27,7 @@ import { isTauri } from "@/lib/tauri";
 import { cn, shortAgo } from "@/lib/utils";
 import { HandleDialog } from "./HandleDialog";
 import { fallbackAddress, RouteChip, RouteContextItems, useReachable } from "@/components/MachineRoute";
-import { addressLabel, currentAddress, isLocal } from "@/lib/machines";
+import { addressLabel, currentAddress } from "@/lib/machines";
 import { baseUrl, needsPairing, useApp, type Machine } from "@/store/app";
 
 
@@ -207,11 +205,6 @@ function ArchivedGroup({ base, admin, onAction, onRename }: {
     </div>
   );
 }
-
-const ComputerIcon = ({ machine, className }: { machine: Machine; className?: string }) => {
-  const Icon = isLocal(machine) ? Laptop : /linux/i.test(machine.name) ? Server : Monitor;
-  return <Icon className={className} aria-label={isLocal(machine) ? "This computer" : undefined} />;
-};
 
 function ComputerGroup({ machine, onHandleAction }: { machine: Machine; onHandleAction: (s: Session) => void }) {
   const qc = useQueryClient();

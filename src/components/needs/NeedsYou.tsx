@@ -1,10 +1,11 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Laptop, Monitor } from "lucide-react";
+
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { answerQuestion, fetchSessionDetail } from "@/api/client";
 import type { Question } from "@/api/types";
 import { AgentAvatar } from "@/components/AgentAvatar";
+import { ComputerIcon } from "@/components/ComputerIcon";
 import { QuestionCard, type Reply } from "@/components/timeline/QuestionCard";
 import { Button } from "@/components/ui/button";
 import { Kbd } from "@/components/ui/kbd";
@@ -12,7 +13,7 @@ import { chat } from "@/hooks/useChat";
 import { useNeedsYou } from "@/hooks/useComputers";
 import { openSession } from "@/hooks/navigate";
 import type { Waiting } from "@/lib/computers";
-import { isLocal } from "@/lib/machines";
+
 import { cn, shortAgo } from "@/lib/utils";
 import { baseUrl, useApp } from "@/store/app";
 
@@ -42,13 +43,12 @@ function WaitingCard({ w, selected, onSelect }: { w: Waiting; selected: boolean;
     }
   };
   if (!machine) return null;
-  const Icon = isLocal(machine) ? Laptop : Monitor;
   const header = (
     <p className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
       <AgentAvatar runner={w.session.runner} size="sm" />
       {w.session.handle && <span className="text-foreground/80">@{w.session.handle} ·</span>}
       <span className="truncate font-medium text-foreground/80">{w.session.title}</span>·
-      <Icon className="size-3 shrink-0" /> <span className="shrink-0">{machine.name}</span>
+      <ComputerIcon machine={machine} className="size-3 shrink-0" /> <span className="shrink-0">{machine.name}</span>
       {w.session.updatedAt && <span className="shrink-0">· {shortAgo(w.session.updatedAt)}</span>}
     </p>
   );

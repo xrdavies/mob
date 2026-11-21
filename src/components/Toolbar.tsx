@@ -1,9 +1,8 @@
-import {
-  Archive, Folder, Laptop, Monitor, MoreHorizontal, MousePointer2, PanelLeft, PanelRight, Pencil, Pin, PinOff, RefreshCw, Square, Trash2, Usb,
-} from "lucide-react";
+import { Archive, Folder, MoreHorizontal, MousePointer2, PanelLeft, PanelRight, Pencil, Pin, PinOff, RefreshCw, Square, Trash2, Usb } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { Health, Queue } from "@/api/types";
 import { AgentAvatar, runnerLabel } from "@/components/AgentAvatar";
+import { ComputerIcon } from "@/components/ComputerIcon";
 import { ChecksList } from "@/components/settings/ComputerPage";
 import { SyncStatus } from "@/components/timeline/SyncStatus";
 import { Button } from "@/components/ui/button";
@@ -39,12 +38,11 @@ function ComputerChip({ machine, health, error, queue, refetch }: {
   const state = unpaired ? "Needs pairing" : error ? "Offline" : !health ? "" : failing ? `${failing} issue${failing > 1 ? "s" : ""}` : "";
   const dot = unpaired ? "bg-warning" : error ? "bg-muted-foreground/40" : !health ? "bg-muted-foreground/25" : failing ? "bg-warning" : "bg-success";
   const waiting = queue?.queued.length ?? 0;
-  const Icon = isLocal(machine) ? Laptop : Monitor;
   return (
     <Popover>
       <PopoverTrigger asChild>
         <button type="button" className="flex items-center gap-1 rounded px-1 hover:bg-muted hover:text-foreground">
-          <Icon className="size-3" /> {machine.name}
+          <ComputerIcon machine={machine} className="size-3" /> {machine.name}
           <span className={cn("size-1.5 rounded-full", dot)} />
           {state && <span className={cn(failing || unpaired ? "text-warning" : "text-muted-foreground")}>{state}</span>}
           {waiting > 0 && <span className="text-muted-foreground">· {waiting} queued</span>}
