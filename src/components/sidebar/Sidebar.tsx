@@ -6,7 +6,7 @@ import { closeDesktop, deleteSessionAt, fetchArchived, patchSessionAt, seedDeskt
 import type { Session } from "@/api/types";
 import { AgentAvatar } from "@/components/AgentAvatar";
 import { ComputerIcon } from "@/components/ComputerIcon";
-import { Spinner, WaitingIcon } from "@/components/StatusIcon";
+import { Spinner, StatusIcon, WaitingIcon } from "@/components/StatusIcon";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { IconButton } from "@/components/ui/icon-button";
@@ -77,6 +77,7 @@ function StatusLine({ session, position }: { session: Session; position?: number
       {line.tone === "working" && <span className="flex items-center gap-1 text-accent"><Spinner className="size-2.5 border-[1.5px]" />{line.text}</span>}
       {line.tone === "queued" && <span className="flex items-center gap-1"><span className="size-2.5 rounded-full border-[1.5px] border-dashed border-muted-foreground/70" />{line.text}</span>}
       {line.tone === "failed" && <span className="font-medium text-danger">✕ {line.text}</span>}
+      {line.tone === "stopped" && <span className="flex items-center gap-1"><StatusIcon status="cancelled" className="size-3" />{line.text}{session.updatedAt && ` · ${shortAgo(session.updatedAt)}`}</span>}
       {line.tone === "done" && <span><span className="text-success">✓</span> {line.text}{session.updatedAt && ` · ${shortAgo(session.updatedAt)}`}</span>}
       {session.handle && <span className="truncate">· @{session.handle}</span>}
     </span>

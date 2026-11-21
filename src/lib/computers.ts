@@ -46,10 +46,12 @@ export function needsYou(byMachine: { machineId: string; sessions: Session[] }[]
 }
 
 /** The one-line status under a conversation's title. */
-export function sessionLine(s: Session, queuePosition?: number): { tone: "needs" | "working" | "queued" | "failed" | "done"; text: string } {
+export function sessionLine(s: Session, queuePosition?: number): { tone: "needs" | "working" | "queued" | "failed" | "stopped" | "done"; text: string } {
   if (s.waiting) return { tone: "needs", text: "Needs you" };
   if (s.activeTaskId && s.status === "running") return { tone: "working", text: "Working" };
   if (s.activeTaskId && s.status === "queued") return { tone: "queued", text: queuePosition ? `Queued #${queuePosition}` : "Queued" };
   if (s.status === "failed") return { tone: "failed", text: "Failed" };
+  // Its last turn was stopped: not done, nothing to fix either.
+  if (s.status === "cancelled") return { tone: "stopped", text: "Stopped" };
   return { tone: "done", text: "Done" };
 }

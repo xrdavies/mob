@@ -35,6 +35,8 @@ test("needs you collects waiting conversations across computers, longest waiting
 test("status lines", () => {
   assert.equal(sessionLine(s("a", "", { waiting: true, activeTaskId: "t", status: "running" })).tone, "needs");
   assert.equal(sessionLine(s("a", "", { activeTaskId: "t", status: "running" })).text, "Working");
+  assert.equal(sessionLine(s("a", "", { status: "cancelled" })).text, "Stopped");
+  assert.equal(sessionLine(s("a", "", { status: "succeeded" })).text, "Done");
   assert.equal(sessionLine(s("a", "", { activeTaskId: "t", status: "queued" }), 2).text, "Queued #2");
   assert.equal(sessionLine(s("a", "", { status: "failed" })).tone, "failed");
   assert.equal(sessionLine(s("a", "")).tone, "done");
