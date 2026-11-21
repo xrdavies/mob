@@ -49,7 +49,8 @@ function Picker({ icon: Icon, label, value, options, onChange, placeholder, onEd
           <ChevronDown className="size-3 opacity-60" />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" side="top">
+      {/* Agents can report dozens of models: the menu scrolls within the window. */}
+      <DropdownMenuContent align="start" side="top" className="max-h-[min(70vh,var(--radix-dropdown-menu-content-available-height))] overflow-y-auto">
         <DropdownMenuLabel>{label}</DropdownMenuLabel>
         <DropdownMenuRadioGroup value={value} onValueChange={onChange}>
           <DropdownMenuRadioItem value="">{placeholder}</DropdownMenuRadioItem>
@@ -384,8 +385,10 @@ export function Composer({ machineId, machineName, health }: { machineId: string
               <Picker icon={Cpu} label="Model" placeholder={defaultLabel("model", runner?.defaultModel)} value={shown.model} options={menuModels(models, shown.model)}
                 onChange={(model) => choose({ model })}
                 onEdit={() => openSettings("computer", machineId, runner?.name ?? "")} />
-              <Picker icon={Brain} label="Reasoning effort" placeholder={defaultLabel("effort", runner?.defaultEffort)} value={shown.effort} options={efforts}
-                onChange={(effort) => choose({ effort })} />
+              {(efforts.length > 0 || shown.effort) && (
+                <Picker icon={Brain} label="Reasoning effort" placeholder={defaultLabel("effort", runner?.defaultEffort)} value={shown.effort} options={efforts}
+                  onChange={(effort) => choose({ effort })} />
+              )}
             </>
           )}
           <div className="flex-1" />

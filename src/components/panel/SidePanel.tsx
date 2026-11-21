@@ -93,7 +93,10 @@ function Details({ machine, health }: { machine: Machine; health?: Health }) {
   const last = chat.currentTask;
   const first = chat.tasks[0];
   const runner = session?.runner ?? last?.runner;
-  const folder = runner === "claude" && health?.claudeWorkdir ? health.claudeWorkdir : health?.workdir;
+  // The agent's own folder when mobd publishes it (agentOptions), else Claude's or the shared one.
+  const ownFolder = health?.agents?.find((x) => x.name === runner)?.options?.find((o) => o.key === "workdir")?.value;
+  const folder = typeof ownFolder === "string" && ownFolder ? ownFolder
+    : runner === "claude" && health?.claudeWorkdir ? health.claudeWorkdir : health?.workdir;
   const { tokens, cost, worked } = sum(chat.tasks);
   const model = [last?.model ?? session?.model, last?.effort ?? session?.effort].filter(Boolean).join(" · ");
   const Icon = isLocal(machine) ? Laptop : Monitor;

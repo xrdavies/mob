@@ -232,6 +232,22 @@ export interface AgentInfo {
   efforts: string[];
   agentDefaultModel?: string;
   agentDefaultEffort?: string;
+  /** The models the agent itself reports (ACP agents), to suggest. */
+  agentModels?: string[];
+}
+
+/** One of an agent's config.json settings (agents.<name>.<key>), drawn generically (feature agentOptions). */
+export interface AgentOption {
+  key: string;
+  label: string;
+  help?: string;
+  type: "bool" | "choice" | "path" | "text" | "number";
+  choices?: { value: string; label: string }[];
+  value?: unknown;
+  /** Applies when mobd restarts. */
+  restart?: boolean;
+  /** Set by a flag or environment variable on the computer: read-only. */
+  overridden?: boolean;
 }
 
 /** Whether a supported agent is set up on the machine, enabled or not. */
@@ -246,6 +262,9 @@ export interface AgentStatus {
   /** Its program and version (/health). */
   bin?: string;
   version?: string;
+  /** "native" (mobd's own adapter) or "acp" (Agent Client Protocol). */
+  protocol?: string;
+  options?: AgentOption[];
 }
 
 export interface SettingsView {

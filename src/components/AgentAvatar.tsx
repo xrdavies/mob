@@ -1,10 +1,12 @@
 import { cn } from "@/lib/utils";
 
-export const RUNNER_LABELS: Record<string, string> = { codex: "Codex", claude: "Claude Code", pi: "Pi" };
+export const RUNNER_LABELS: Record<string, string> = { codex: "Codex", claude: "Claude Code", pi: "Pi", opencode: "OpenCode", dsh: "DeepSeek Harness" };
 
 export const runnerLabel = (runner?: string) => (runner ? RUNNER_LABELS[runner] ?? runner : "Agent");
 
-const COLORS: Record<string, string> = { claude: "bg-[#d97757]", codex: "bg-[#202024] dark:bg-[#3a3a40]", pi: "bg-[#7c3aed]" };
+const COLORS: Record<string, string> = {
+  claude: "bg-[#d97757]", codex: "bg-[#202024] dark:bg-[#3a3a40]", pi: "bg-[#7c3aed]", opencode: "bg-[#0f766e]", dsh: "bg-[#4d6bfe]",
+};
 
 /** The agent's mark: its program's initial on its color. */
 export function AgentAvatar({ runner, size = "md", className }: { runner?: string; size?: "sm" | "md" | "lg"; className?: string }) {
@@ -17,7 +19,7 @@ export function AgentAvatar({ runner, size = "md", className }: { runner?: strin
         size === "sm" && "size-3.5 rounded-[4px] text-[8px]",
         size === "md" && "size-5 rounded-md text-[10.5px]",
         size === "lg" && "size-[30px] rounded-lg text-[13px]",
-        COLORS[runner ?? ""] ?? "bg-accent",
+        COLORS[runner ?? ""] ?? "bg-muted-foreground",
         className,
       )}
     >
