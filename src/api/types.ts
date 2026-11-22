@@ -234,6 +234,8 @@ export interface AgentInfo {
   agentDefaultEffort?: string;
   /** The models the agent itself reports (ACP agents), to suggest. */
   agentModels?: string[];
+  /** false: the agent cannot ask before acting (it decides on its own); missing on older mobd means it can. */
+  approvals?: boolean;
 }
 
 /** One of an agent's config.json settings (agents.<name>.<key>), drawn generically (feature agentOptions). */

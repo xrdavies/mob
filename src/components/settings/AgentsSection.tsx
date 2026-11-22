@@ -235,10 +235,16 @@ function AgentPage({ machine, name, view, onBack, m, status }: {
           </Row>}
         </Group>
         <Group title="Permissions">
-          <Row label="Commands and file edits">
-            <Segmented<AgentEdit["permissions"]> label="Permissions" value={a.permissions} onChange={(v) => setEdit(withAgent(edit, name, { permissions: v }))}
-              options={[{ value: "approve", label: "Ask first" }, { value: "bypass", label: "Run without asking" }]} />
-          </Row>
+          {info.approvals === false ? (
+            <Row label="Commands and file edits" detail={`${label} decides on its own and cannot ask you first.`}>
+              <span className="text-xs text-muted-foreground">Runs without asking</span>
+            </Row>
+          ) : (
+            <Row label="Commands and file edits">
+              <Segmented<AgentEdit["permissions"]> label="Permissions" value={a.permissions} onChange={(v) => setEdit(withAgent(edit, name, { permissions: v }))}
+                options={[{ value: "approve", label: "Ask first" }, { value: "bypass", label: "Run without asking" }]} />
+            </Row>
+          )}
         </Group>
         {state.kind === "confirm" && (
           <div className="grid gap-2 rounded-[10px] border border-warning/50 bg-warning/10 p-3 text-xs">
@@ -315,7 +321,8 @@ export function AgentsTab({ machine }: { machine: Machine }) {
           const label = view.agents[name]?.label ?? st?.label ?? name;
           const page = !!view.agents[name] || !!st?.options;
           const on = runners.includes(name);
-          const sub = s ? [s.defaultModel || "Default model", s.defaultEffort, PERMISSIONS[s.permissions]].filter(Boolean).join(" · ") : st?.detail;
+          const perms = view.agents[name]?.approvals === false ? PERMISSIONS.bypass : s && PERMISSIONS[s.permissions];
+          const sub = s ? [s.defaultModel || "Default model", s.defaultEffort, perms].filter(Boolean).join(" · ") : st?.detail;
           return (
             <div key={name} className="flex min-h-12 items-center gap-3 px-3 py-2">
               <AgentAvatar runner={name} size="lg" />
