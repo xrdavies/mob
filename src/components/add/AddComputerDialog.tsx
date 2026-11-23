@@ -3,11 +3,11 @@ import { ArrowLeft, Check, ChevronRight, ClipboardPaste, Copy, Lock, Monitor, Pe
 import { useEffect, useRef, useState, type ClipboardEvent, type DragEvent, type KeyboardEvent, type ReactNode } from "react";
 import { toast } from "sonner";
 import { Spinner } from "@/components/StatusIcon";
-import { LocalSetup } from "@/components/local/LocalSetup";
+import { LocalSetup, useLocalStatus } from "@/components/local/LocalSetup";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { addressKind, addressLabel, hasAddress, hostOf } from "@/lib/machines";
+import { addressKind, addressLabel, hasAddress, hostOf, isLocal } from "@/lib/machines";
 import { deviceNameError, nameFromOrigin, pair, parsePairLink, type PairLink } from "@/lib/pairing";
 import { cn } from "@/lib/utils";
 import { useApp, type Machine } from "@/store/app";
@@ -48,8 +48,10 @@ function Header({ title, description, onBack }: { title: string; description?: R
 }
 
 /** Step 2: run `mobd link` there, paste what it prints. A valid link moves on by itself. */
-function LinkStep({ machine, onLink, onBack, checkClipboard }: {
+function LinkStep({ machine, onLink, onBack, checkClipboard, onThisComputer }: {
   machine?: Machine; onLink: (l: PairLink) => void; onBack?: () => void; checkClipboard: () => boolean;
+  /** Set while this computer is not listed: offers to set it up instead of pasting a link. */
+  onThisComputer?: () => void;
 }) {
   const [text, setText] = useState("");
   const [error, setError] = useState("");
@@ -93,6 +95,17 @@ function LinkStep({ machine, onLink, onBack, checkClipboard }: {
         description={machine ? "Or add another of its addresses, such as its Tailscale one." : "A Mac or Linux computer running mobd."}
         onBack={onBack}
       />
+      {onThisComputer && (
+        <button type="button" onClick={onThisComputer}
+          className="flex items-center gap-3 rounded-[10px] border px-3 py-2.5 text-left hover:bg-muted/60">
+          <Monitor className="size-4 shrink-0 text-muted-foreground" />
+          <span className="grid min-w-0 flex-1">
+            <span className="text-[13px] font-medium">This computer</span>
+            <span className="text-[11.5px] text-muted-foreground">Run your agents here: Mob installs or starts mobd and connects to it.</span>
+          </span>
+          <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
+        </button>
+      )}
       <ol className="grid gap-4">
         <li className="flex gap-3">
           <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-muted text-[11px] font-semibold">1</span>
@@ -242,9 +255,11 @@ function ConfirmStep({ link, machine, onBack, onPaired }: {
 export function AddComputerDialog() {
   const { addOpen, addFor, addStart, machines, set, selectMachine } = useApp();
   const target = machines.find((m) => m.id === addFor);
-  // Straight to the mobd link (docs/desktop-redesign D8): this computer is set up from the welcome
-  // screen or its Service tab, never offered here.
+  // Straight to the mobd link (docs/desktop-redesign D8). While this computer is not listed (another
+  // computer was added first, so the welcome screen never showed) the link step also offers it.
   const first: Step = addStart ?? "link";
+  const { data: localStatus } = useLocalStatus();
+  const offerLocal = !target && !!localStatus?.supported && !machines.some(isLocal);
   const [step, setStep] = useState<Step>(first);
   const [link, setLink] = useState<PairLink | null>(null);
   const clipboardChecked = useRef(false);
@@ -279,6 +294,7 @@ export function AddComputerDialog() {
         )}
         {step === "link" && (
           <LinkStep machine={target} checkClipboard={checkClipboard}
+            onThisComputer={offerLocal ? () => setStep("local") : undefined}
             onLink={(l) => { setLink(l); setStep("confirm"); }} />
         )}
         {step === "confirm" && link && (
