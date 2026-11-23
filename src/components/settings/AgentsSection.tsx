@@ -308,7 +308,10 @@ export function AgentsTab({ machine }: { machine: Machine }) {
   if (open && (view.agents[open] || statuses.get(open)?.options)) {
     return <AgentPage machine={machine} name={open} view={view} m={m} status={statuses.get(open)} onBack={() => setOpen(null)} />;
   }
-  const runners = (m.config?.effective.runners as string[] | undefined) ?? [...statuses.values()].filter((a) => a.enabled).map((a) => a.name);
+  // What runs now, and what config.json says (applied by Restart to apply): the switches show the
+  // saved choice, so a click visibly does something before the restart.
+  const running = (m.config?.effective.runners as string[] | undefined) ?? [...statuses.values()].filter((a) => a.enabled).map((a) => a.name);
+  const runners = (m.config?.values.runners as string[] | undefined) ?? running;
   const canToggle = !!m.config && m.config.editable.includes("runners") && !m.config.overridden.includes("runners");
   const names = [...new Set([...Object.keys(view.agents), ...statuses.keys()])];
 
@@ -321,6 +324,7 @@ export function AgentsTab({ machine }: { machine: Machine }) {
           const label = view.agents[name]?.label ?? st?.label ?? name;
           const page = !!view.agents[name] || !!st?.options;
           const on = runners.includes(name);
+          const pending = on !== running.includes(name) ? (on ? "On after restart" : "Off after restart") : "";
           const perms = view.agents[name]?.approvals === false ? PERMISSIONS.bypass : s && PERMISSIONS[s.permissions];
           const sub = s ? [s.defaultModel || "Default model", s.defaultEffort, perms].filter(Boolean).join(" · ") : st?.detail;
           return (
@@ -330,7 +334,7 @@ export function AgentsTab({ machine }: { machine: Machine }) {
                 <span className="text-[13px] font-medium">{label}</span>
                 <span className="truncate text-[11.5px] text-muted-foreground">{sub}</span>
               </button>
-              <span className={cn("shrink-0 text-xs", st?.state === "ready" ? "text-success" : "text-muted-foreground")}>{stateText(st)}</span>
+              <span className={cn("shrink-0 text-xs", pending ? "text-warning" : st?.state === "ready" ? "text-success" : "text-muted-foreground")}>{pending || stateText(st)}</span>
               <Switch checked={on} disabled={!canToggle || (!on && st?.state === "missing")} aria-label={`${label} on`}
                 onCheckedChange={(v) => {
                   const next = v ? [...runners, name] : runners.filter((r) => r !== name);

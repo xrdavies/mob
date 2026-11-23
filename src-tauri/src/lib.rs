@@ -41,6 +41,7 @@ pub fn run() {
             local::local_link,
             local::local_workdir,
             local::local_open_settings,
+            local::local_reveal_mobd,
             local::local_latest,
             local::local_install,
             local::local_setup,

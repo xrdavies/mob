@@ -328,7 +328,16 @@ function DevicesTab({ machine }: { machine: Machine }) {
         <Group title="macOS permissions">
           {perms.data.permissions.map((g) => (
             <Row key={g.name} label={<span className="flex items-center gap-2"><Dot tone={g.state === "granted" ? "ok" : g.state === "restart" ? "warn" : "bad"} />{g.label}</span>}
-              detail={g.state === "missing" ? g.detail : g.state === "restart" ? restartDetail(g) : undefined}>
+              detail={g.state === "missing" ? (
+                // macOS lists mobd here only the first time it asks; after that it can be added by hand.
+                askedGrants.has(g.name) && PANE_GRANTS.has(g.name) ? <>
+                  {g.detail}. Not in the list? Click + in System Settings and choose mobd, then switch it on.{" "}
+                  <button type="button" className="text-accent hover:underline"
+                    onClick={() => void invoke("local_reveal_mobd").catch((err) => log(`showing mobd failed: ${errorText(err)}`, "error"))}>
+                    Show mobd in Finder
+                  </button>
+                </> : g.detail
+              ) : g.state === "restart" ? restartDetail(g) : undefined}>
               {g.state === "missing" && <Button size="sm" variant="secondary" onClick={() => void ask(g)}>Allow…</Button>}
               {g.state === "restart" && (
                 <ConfirmButton label={<>{restarting && <Spinner />} Restart now</>} disabled={restarting}

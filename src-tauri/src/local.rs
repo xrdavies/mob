@@ -93,6 +93,17 @@ pub async fn local_open_settings(url: String) -> Result<(), String> {
     .await
 }
 
+/// Shows this computer's mobd program in Finder, to drag into a System Settings permission list.
+#[tauri::command]
+pub async fn local_reveal_mobd() -> Result<(), String> {
+    blocking(|| {
+        let bin = imp::status()?.binary.ok_or("mobd is not installed")?;
+        std::process::Command::new("/usr/bin/open").arg("-R").arg(&bin).status().map_err(err)?;
+        Ok(())
+    })
+    .await
+}
+
 /// The latest stable mobd version from the release manifest.
 #[tauri::command]
 pub async fn local_latest() -> Result<String, String> {
