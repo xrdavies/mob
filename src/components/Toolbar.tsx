@@ -1,5 +1,6 @@
 import { Archive, Folder, MoreHorizontal, MousePointer2, PanelLeft, PanelRight, Pencil, Pin, PinOff, RefreshCw, Square, Trash2, Usb } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { ProxyHint } from "@/components/ProxyHint";
 import type { Health, Queue } from "@/api/types";
 import { AgentAvatar, runnerLabel } from "@/components/AgentAvatar";
 import { ComputerIcon } from "@/components/ComputerIcon";
@@ -58,6 +59,7 @@ function ComputerChip({ machine, health, error, queue, refetch }: {
         </div>
         {unpaired && <Button size="sm" className="w-fit" onClick={() => useApp.getState().openAdd(machine.id)}>Pair again</Button>}
         {error && !unpaired && <p className="text-xs text-danger">mobd is not reachable. Check the address, network or VPN.</p>}
+        {error && !unpaired && <ProxyHint origin={baseUrl(machine)} className="mt-1" />}
         <ChecksList checks={health?.checks} />
       </PopoverContent>
     </Popover>

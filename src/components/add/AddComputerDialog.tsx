@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type ClipboardEvent, type DragEvent, type 
 import { toast } from "sonner";
 import { Spinner } from "@/components/StatusIcon";
 import { LocalSetup, useLocalStatus } from "@/components/local/LocalSetup";
+import { ProxyHint } from "@/components/ProxyHint";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -243,6 +244,7 @@ function ConfirmStep({ link, machine, onBack, onPaired }: {
         )}
       </div>
       {error && <p className="text-xs text-danger" role="alert">{error}</p>}
+      {error && <ProxyHint origin={link.origin} />}
       <div className="flex justify-end gap-2">
         <Button variant="ghost" onClick={onBack}>Back</Button>
         <Button disabled={!ready} onClick={() => void submit()}>{busy && <Spinner />} {newAddress ? "Add address" : saved ? "Pair again" : "Pair"}</Button>

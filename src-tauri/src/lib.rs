@@ -1,5 +1,6 @@
 mod history;
 mod local;
+mod proxy;
 mod secrets;
 mod transfers;
 mod usb;
@@ -47,7 +48,8 @@ pub fn run() {
             local::local_setup,
             local::local_service,
             local::local_logs,
-            local::local_control
+            local::local_control,
+            proxy::system_proxy
         ])
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_dialog::init())

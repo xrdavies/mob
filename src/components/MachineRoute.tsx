@@ -1,5 +1,6 @@
 import { Route, WifiOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ProxyHint } from "@/components/ProxyHint";
 import {
   ContextMenuItem, DropdownMenu, DropdownMenuContent, DropdownMenuLabel, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger,
 } from "@/components/ui/menu";
@@ -73,7 +74,10 @@ export function RouteBanner({ machine }: { machine: Machine }) {
   return (
     <div role="status" className="mx-4 mt-2 flex items-center gap-2 rounded-lg border bg-panel px-3 py-2 text-xs">
       <WifiOff className="size-3.5 shrink-0 text-warning" />
-      <span className="min-w-0 flex-1">{addressLabel(machine, a)} {needsPairing(machine) ? "needs pairing" : "not reachable"}</span>
+      <span className="grid min-w-0 flex-1 gap-0.5">
+        <span>{addressLabel(machine, a)} {needsPairing(machine) ? "needs pairing" : "not reachable"}</span>
+        {!needsPairing(machine) && <ProxyHint origin={a.url} />}
+      </span>
       <Button size="sm" variant="secondary" onClick={() => selectRoute(machine.id, other.id)}>Use {addressLabel(machine, other)}</Button>
     </div>
   );
